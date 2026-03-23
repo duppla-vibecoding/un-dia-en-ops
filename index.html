@@ -4,26 +4,316 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>Un Dia en Ops v2 — Duppla</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: #C4956A;
+            background: #2a1a0e;
             display: flex; justify-content: center; align-items: center;
             min-height: 100vh; overflow: hidden;
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: 'Nunito', 'Trebuchet MS', 'Segoe UI', Arial, sans-serif;
             -webkit-user-select: none; user-select: none;
         }
-        canvas { image-rendering: -webkit-optimize-contrast; }
+        #game-container {
+            position: relative;
+            width: 640px; height: 960px;
+            overflow: hidden;
+        }
+        #game-canvas {
+            position: absolute; top: 0; left: 0;
+            width: 640px; height: 960px;
+            image-rendering: -webkit-optimize-contrast;
+        }
+        /* DOM overlay layer */
+        .dom-layer {
+            position: absolute; top: 0; left: 0;
+            width: 640px; height: 960px;
+            pointer-events: none;
+        }
+        .dom-layer * { pointer-events: auto; }
+        .clickable {
+            position: absolute; cursor: pointer;
+            background: transparent; border: none; outline: none;
+        }
+        .screen { display: none; }
+        .screen.active { display: block; }
+
+        /* Fade transitions */
+        #game-container.fade-out { animation: fadeOut 0.3s forwards; }
+        #game-container.fade-in { animation: fadeIn 0.4s forwards; }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Shake */
+        #game-container.shake { animation: shake 0.2s; }
+        @keyframes shake {
+            0%,100% { transform: translate(0,0); }
+            25% { transform: translate(-2px, 1px); }
+            50% { transform: translate(2px, -1px); }
+            75% { transform: translate(-1px, 2px); }
+        }
+
+        /* Flash */
+        .flash-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; opacity: 0;
+            animation: flashAnim 0.2s forwards;
+        }
+        @keyframes flashAnim { 0% { opacity: 0.5; } 100% { opacity: 0; } }
+
+        /* Buttons - Make More style */
+        .game-btn {
+            position: absolute; cursor: pointer;
+            border: none; outline: none;
+            font-family: 'Nunito', 'Trebuchet MS', Arial, sans-serif;
+            font-weight: 900; color: #1a1a1a;
+            border-radius: 16px;
+            transition: transform 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .game-btn:hover { transform: scale(1.05); }
+        .game-btn:active { transform: scale(0.98); }
+        .btn-green { background: #FFD700; border: 4px solid #DAA520; color: #5D3A1A; }
+        .btn-green:hover { background: #FFE44D; }
+        .btn-orange { background: #FFD700; border: 3px solid #DAA520; color: #5D3A1A; }
+        .btn-orange:hover { background: #FFE44D; }
+        .btn-gray { background: #999; border: 2px solid #666; cursor: default; }
+
+        /* Event overlay */
+        #event-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none; z-index: 90;
+        }
+        #event-card {
+            position: absolute;
+            left: 50%; top: 50%; transform: translate(-50%, -50%);
+            width: 420px; height: 240px;
+            background: #FFF8E7;
+            border-radius: 20px;
+            border: 4px solid #FF4444;
+            z-index: 91;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            animation: borderPulse 0.8s infinite alternate;
+        }
+        @keyframes borderPulse {
+            0% { border-color: rgba(255,68,68,1); }
+            100% { border-color: rgba(255,68,68,0.4); }
+        }
+        #event-title {
+            text-align: center; font-family: 'Nunito', 'Trebuchet MS', Arial, sans-serif;
+            font-size: 22px; color: #5D3A1A; margin-top: 18px;
+            font-weight: 900; text-transform: uppercase;
+        }
+        #event-body {
+            text-align: center; font-size: 14px; color: #555;
+            margin-top: 8px; padding: 0 30px;
+            font-family: 'Nunito', 'Trebuchet MS', Arial, sans-serif;
+        }
+        .evt-btn-row {
+            display: flex; justify-content: center; gap: 20px;
+            margin-top: 16px;
+        }
+        .evt-btn {
+            width: 180px; height: 60px; border-radius: 14px;
+            cursor: pointer; border: none; outline: none;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Nunito', 'Trebuchet MS', Arial, sans-serif;
+            transition: transform 0.1s, filter 0.1s;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+        }
+        .evt-btn:hover:not(.evt-btn-disabled) { transform: scale(1.05) translateY(-2px); filter: brightness(1.1); }
+        .evt-btn-disabled { cursor: default; opacity: 0.6; }
+        .evt-btn .evt-label { font-size: 14px; font-weight: 900; color: #1a1a1a; }
+        .evt-btn .evt-desc { font-size: 9px; color: #555; margin-top: 2px; }
+
+        /* Round start overlay */
+        #round-start-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none; z-index: 95; cursor: pointer;
+        }
+        #round-start-panel {
+            position: absolute;
+            left: 50%; top: 50%; transform: translate(-50%, -50%) scale(0.8);
+            width: 480px; height: 200px;
+            background: #8B5E3C;
+            border-radius: 20px;
+            border: 4px solid #5D3A1A;
+            text-align: center;
+            opacity: 0;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            animation: panelIn 0.4s 0.05s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes panelIn { to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+        #round-start-panel .pin {
+            position: absolute; width: 14px; height: 14px; border-radius: 50%;
+            background: #FFD700;
+            box-shadow: inset -2px -2px 0 #DAA520;
+        }
+        #round-start-panel .pin.tl { top: 12px; left: 12px; }
+        #round-start-panel .pin.tr { top: 12px; right: 12px; }
+        #round-start-panel .pin.bl { bottom: 12px; left: 12px; }
+        #round-start-panel .pin.br { bottom: 12px; right: 12px; }
+        #rs-day {
+            font-size: 52px; font-family: 'Nunito', 'Trebuchet MS', Arial, sans-serif;
+            color: #FFD700; font-weight: 900; margin-top: 20px;
+            text-shadow: -4px 0 #1a1a1a, 0 4px #1a1a1a, 4px 0 #1a1a1a, 0 -4px #1a1a1a;
+            text-transform: uppercase;
+        }
+        #rs-sub { font-size: 15px; color: #fff; margin-top: 6px; font-family: 'Nunito', Arial, sans-serif; }
+        #rs-upgrades { font-size: 12px; color: #4CAF50; margin-top: 6px; }
+        #rs-click { font-size: 13px; color: #FFD700; font-style: italic; margin-top: 8px; }
+
+        /* Shop screen */
+        .shop-card {
+            position: absolute; width: 240px; height: 115px;
+            border-radius: 16px; text-align: center;
+            cursor: pointer; transition: transform 0.1s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-family: 'Nunito', 'Trebuchet MS', Arial, sans-serif;
+        }
+        .shop-card:hover:not(.shop-owned):not(.shop-broke) { transform: scale(1.03) translateY(-2px); }
+        .shop-card.shop-owned { background: #FFF8E7; border: 3px solid #4CAF50; cursor: default; }
+        .shop-card.shop-afford { background: #FFF8E7; border: 3px solid #FFD700; }
+        .shop-card.shop-broke { background: #E8E0D4; border: 2px solid #999; cursor: default; }
+        .shop-card .sc-emoji { font-size: 24px; margin-top: 8px; }
+        .shop-card .sc-name { font-size: 12px; font-weight: 900; color: #5D3A1A; margin-top: 2px; }
+        .shop-card .sc-desc { font-size: 9px; color: #777; margin-top: 2px; line-height: 1.4; white-space: pre-line; }
+        .shop-card .sc-price { font-size: 11px; font-weight: 900; margin-top: 4px; }
+        .shop-card .sc-buy-btn {
+            display: inline-block; margin-top: 2px; padding: 2px 16px;
+            background: #FFD700; border-radius: 8px; font-size: 10px;
+            font-weight: 900; color: #5D3A1A;
+        }
+        .shop-card.shop-broke .sc-buy-btn { background: #ccc; color: #888; }
+        .shop-card.shop-owned .sc-buy-btn { background: #4CAF50; color: #fff; }
+
+        /* Floating text */
+        .float-text {
+            position: absolute; pointer-events: none;
+            font-family: 'Nunito', 'Trebuchet MS', Arial, sans-serif;
+            font-size: 15px; font-weight: 900;
+            text-shadow: -3px 0 #000, 0 3px #000, 3px 0 #000, 0 -3px #000;
+            animation: floatUp 0.5s forwards;
+            z-index: 50;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-35px); }
+        }
+
+        /* Toast */
+        .toast-msg {
+            position: absolute; bottom: 70px; left: 50%;
+            transform: translateX(-50%);
+            font-size: 13px; color: #4CAF50;
+            font-family: 'Nunito', Arial, sans-serif;
+            font-weight: 700;
+            animation: toastFade 1.5s forwards;
+            z-index: 10;
+        }
+        @keyframes toastFade {
+            0% { opacity: 1; }
+            100% { opacity: 0; transform: translate(-50%, -15px); }
+        }
     </style>
-    <script src="phaser.min.js"></script>
 </head>
 <body>
+<div id="game-container">
+    <canvas id="game-canvas" width="640" height="960"></canvas>
+    <div class="dom-layer" id="dom-layer">
+        <!-- Screens are toggled via JS -->
+        <!-- Menu DOM -->
+        <div id="screen-menu" class="screen">
+            <button id="btn-jugar" class="game-btn btn-green"
+                style="left:190px;top:670px;width:260px;height:60px;font-size:24px;">
+                JUGAR
+            </button>
+        </div>
+
+        <!-- Game DOM -->
+        <div id="screen-game" class="screen">
+            <!-- 5 station click zones -->
+            <div id="stz-0" class="clickable" style="left:30px;top:222px;width:172px;height:167px;"></div>
+            <div id="stz-1" class="clickable" style="left:240px;top:222px;width:172px;height:167px;"></div>
+            <div id="stz-2" class="clickable" style="left:450px;top:222px;width:172px;height:167px;"></div>
+            <div id="stz-3" class="clickable" style="left:135px;top:402px;width:172px;height:167px;"></div>
+            <div id="stz-4" class="clickable" style="left:345px;top:402px;width:172px;height:167px;"></div>
+            <!-- 3 boost click zones -->
+            <div id="bstz-0" class="clickable" style="left:30px;top:680px;width:176px;height:86px;"></div>
+            <div id="bstz-1" class="clickable" style="left:235px;top:680px;width:176px;height:86px;"></div>
+            <div id="bstz-2" class="clickable" style="left:440px;top:680px;width:176px;height:86px;"></div>
+            <!-- Round start overlay -->
+            <div id="round-start-overlay">
+                <div id="round-start-panel">
+                    <div class="pin tl"></div><div class="pin tr"></div>
+                    <div class="pin bl"></div><div class="pin br"></div>
+                    <div id="rs-day"></div>
+                    <div id="rs-sub"></div>
+                    <div id="rs-upgrades"></div>
+                    <div id="rs-click">[ Click para empezar ]</div>
+                </div>
+            </div>
+            <!-- Event overlay -->
+            <div id="event-overlay">
+                <div id="event-card">
+                    <div id="event-title"></div>
+                    <div id="event-body"></div>
+                    <div class="evt-btn-row">
+                        <button id="evt-btn-a" class="evt-btn" style="background:#4CAF50;border:3px solid #388E3C;">
+                            <span class="evt-label" id="evt-a-label"></span>
+                            <span class="evt-desc" id="evt-a-desc"></span>
+                        </button>
+                        <button id="evt-btn-b" class="evt-btn" style="background:#FFD700;border:3px solid #DAA520;">
+                            <span class="evt-label" id="evt-b-label"></span>
+                            <span class="evt-desc" id="evt-b-desc"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shop DOM -->
+        <div id="screen-shop" class="screen">
+            <!-- Cards and button generated dynamically -->
+        </div>
+
+        <!-- End DOM -->
+        <div id="screen-end" class="screen">
+            <button id="btn-share" class="game-btn btn-green"
+                style="left:25px;top:766px;width:210px;height:48px;font-size:14px;border-radius:14px;">
+                Compartir
+            </button>
+            <button id="btn-replay" class="game-btn btn-green"
+                style="left:255px;top:766px;width:210px;height:48px;font-size:14px;border-radius:14px;">
+                Jugar de nuevo
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
 // ===================================================================
-// UN DIA EN OPS v2 — Make More Style — Duppla
+// UN DIA EN OPS v2 — Pure HTML/CSS/JS — Duppla
+// Visual overhaul: Make More / Idle Clicker style
 // ===================================================================
 
 const W = 640, H = 960;
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('game-container');
+
+// --- Viewport scaling ---
+function scaleContainer() {
+    const sw = window.innerWidth, sh = window.innerHeight;
+    const scale = Math.min(sw / W, sh / H);
+    container.style.transform = `scale(${scale})`;
+    container.style.transformOrigin = 'center center';
+}
+scaleContainer();
+window.addEventListener('resize', scaleContainer);
 
 // --- Config ---
 const TOTAL_ROUNDS = 8;
@@ -44,57 +334,58 @@ const COMBO_TIERS = [
 
 // --- Process data ---
 const PROC_DATA = [
-    { name: 'Onboarding',  emoji: '\u{1F4CB}', processTime: 3,   decay: 3.5 },
-    { name: 'Pre-Entrega', emoji: '\u2696\uFE0F', processTime: 6,   decay: 1.5 },
-    { name: 'Entrega',     emoji: '\u{1F3E0}', processTime: 4.5, decay: 2.5 },
-    { name: 'Operativa',   emoji: '\u2699\uFE0F', processTime: 4.5, decay: 2.2 },
-    { name: 'Off Ramp',    emoji: '\u{1F680}', processTime: 7,   decay: 2.0 },
+    { name: 'Onboarding',   emoji: '\u{1F4CB}', processTime: 3,   decay: 3.5 },
+    { name: 'Seguimiento',  emoji: '\u{1F4DE}', processTime: 6,   decay: 1.5 },
+    { name: 'Entrega',      emoji: '\u{1F3CD}\uFE0F', processTime: 4.5, decay: 2.5 },
+    { name: 'Recaudo',      emoji: '\u{1F4B0}', processTime: 4.5, decay: 2.2 },
+    { name: 'Off Ramp',     emoji: '\u{1F389}', processTime: 7,   decay: 2.0 },
 ];
 const PROC_W = 160, PROC_H = 155;
 
-// --- Station grid positions (Make More style) ---
+// --- Station grid positions ---
 const PROC_POS = [
-    { x: 110, y: 300 },   // Onboarding
-    { x: 320, y: 300 },   // Pre-Entrega
-    { x: 530, y: 300 },   // Entrega
-    { x: 215, y: 480 },   // Operativa
-    { x: 425, y: 480 },   // Off Ramp
+    { x: 110, y: 300 },
+    { x: 320, y: 300 },
+    { x: 530, y: 300 },
+    { x: 215, y: 480 },
+    { x: 425, y: 480 },
 ];
 
-// --- Worker shirt colors per process ---
-const WORKER_SHIRTS = [0x2196F3, 0x607D8B, 0xFFC107, 0xF44336, 0x4CAF50];
-const WORKER_SKINS = [0xFFD5A0, 0xD4A574, 0x8B6847, 0xFFD5A0, 0xD4A574];
-const WORKER_HAIR = [0x333333, 0xFFD700, 0x8B0000, 0xFFFFFF, 0x333333];
+// --- Worker colors (vibrant saturated for chibi) ---
+const WORKER_SHIRTS = ['#2196F3', '#E91E63', '#FF9800', '#F44336', '#4CAF50'];
+const WORKER_SKINS  = ['#FFCC99', '#D4A574', '#8B6847', '#FFCC99', '#D4A574'];
+const WORKER_HAIR   = ['#333333', '#FFD700', '#8B0000', '#FFFFFF', '#333333'];
+const WORKER_HELMETS = ['#FFD700', '#FF5722', '#4CAF50', '#2196F3', '#9C27B0'];
 
 // --- Client types ---
 const CLIENT_TYPES = {
-    normal:  { color: 0x00CED1, value: 3, timeMult: 1.0, ageMult: 1.0, dot: '\u25CF' },
-    vip:     { color: 0xffd700, value: 5, timeMult: 1.5, ageMult: 1.0, dot: '\u2605' },
-    urgente: { color: 0xFF4444, value: 4, timeMult: 0.7, ageMult: 2.0, dot: '!' },
+    normal:  { color: '#00CED1', value: 3, timeMult: 1.0, ageMult: 1.0, dot: '\u25CF' },
+    vip:     { color: '#ffd700', value: 5, timeMult: 1.5, ageMult: 1.0, dot: '\u2605' },
+    urgente: { color: '#FF4444', value: 4, timeMult: 0.7, ageMult: 2.0, dot: '!' },
 };
 
 // --- Upgrades ---
 const UPGRADES = [
     { id: 'app',       name: 'App Clientes',   emoji: '\u{1F4F1}', price: 15, desc: 'Onboarding\nauto-heal 2%/s',        row: 0, col: 0 },
-    { id: 'dashboard', name: 'Dashboard',       emoji: '\u{1F4CA}', price: 15, desc: 'Pre-Entrega\n40% mas rapido',       row: 0, col: 1 },
+    { id: 'dashboard', name: 'Dashboard',       emoji: '\u{1F4CA}', price: 15, desc: 'Seguimiento\n40% mas rapido',       row: 0, col: 1 },
     { id: 'protocolo', name: 'Protocolo',       emoji: '\u{1F4E6}', price: 15, desc: 'Entrega\n40% mas rapido',           row: 0, col: 2 },
-    { id: 'debito',    name: 'Debito Auto',     emoji: '\u{1F3E6}', price: 20, desc: 'Operativa\nauto-heal 3%/s',         row: 0, col: 3 },
-    { id: 'script',    name: 'Script MDC',      emoji: '\u{1F4DE}', price: 20, desc: 'Operativa\n40% mas rapido',          row: 1, col: 0 },
+    { id: 'debito',    name: 'Debito Auto',     emoji: '\u{1F3E6}', price: 20, desc: 'Recaudo\nauto-heal 3%/s',          row: 0, col: 3 },
+    { id: 'script',    name: 'Script MDC',      emoji: '\u{1F4DE}', price: 20, desc: 'Recaudo\n40% mas rapido',            row: 1, col: 0 },
     { id: 'capacita',  name: 'Capacitacion',    emoji: '\u{1F4DA}', price: 25, desc: 'Todo\nheal rate +50%',              row: 1, col: 1 },
     { id: 'gestion',   name: 'Gestion Casos',   emoji: '\u{1F3AB}', price: 30, desc: 'Todo\ndecay 30% mas lento',        row: 1, col: 2 },
     { id: 'auto',      name: 'Automatizacion',  emoji: '\u{1F916}', price: 35, desc: 'Un proceso\nse vuelve auto',       row: 1, col: 3 },
 ];
 
-// --- Events (interactive) ---
+// --- Events ---
 const EVENTS = [
     {
         title: 'DEBITO FALLIDO', text: 'Debito automatico fallo en 10% de inquilinos',
-        optA: { label: 'Aceptar', desc: '+3 clientes Operativa', apply(g) { g.addClientsTo(3, 3); } },
+        optA: { label: 'Aceptar', desc: '+3 clientes Recaudo', apply(g) { g.addClientsTo(3, 3); } },
         optB: { label: 'Mitigar', desc: '-8 coins, +1 cliente', cost: 8, apply(g) { g.addClientsTo(3, 1); } },
     },
     {
         title: 'MOROSO CRONICO', text: 'Inquilino lleva 2 meses sin pagar — escalamiento',
-        optA: { label: 'Ignorar', desc: 'Operativa salud -40%', apply(g) { g.procs[3].health = Math.min(g.procs[3].health, 40); g.flashStation(3); } },
+        optA: { label: 'Ignorar', desc: 'Recaudo salud -40%', apply(g) { g.procs[3].health = Math.min(g.procs[3].health, 40); g.flashStation(3); } },
         optB: { label: 'Resolver', desc: '-10 coins', cost: 10, apply() {} },
     },
     {
@@ -104,13 +395,13 @@ const EVENTS = [
     },
     {
         title: 'ERROR SISTEMA', text: 'Sistema caido temporalmente',
-        optA: { label: 'Esperar', desc: 'Proceso congelado 10s', apply(g) { const t = Phaser.Math.Between(0, 4); g.freezeProc(t, 10); } },
-        optB: { label: 'Fix rapido', desc: '-6 coins, solo 4s', cost: 6, apply(g) { const t = Phaser.Math.Between(0, 4); g.freezeProc(t, 4); } },
+        optA: { label: 'Esperar', desc: 'Proceso congelado 10s', apply(g) { const t = randInt(0, 4); g.freezeProc(t, 10); } },
+        optB: { label: 'Fix rapido', desc: '-6 coins, solo 4s', cost: 6, apply(g) { const t = randInt(0, 4); g.freezeProc(t, 4); } },
     },
     {
         title: 'AVALANCHA CASOS', text: '4 casos urgentes de clientes llegan de golpe',
-        optA: { label: 'Absorber', desc: '+4 clientes urgentes', apply(g) { for (let i = 0; i < 4; i++) g.addClientOfType(Phaser.Math.Between(0, 4), 'urgente'); } },
-        optB: { label: 'Filtrar', desc: '-7 coins, +2 normales', cost: 7, apply(g) { g.addClientsTo(Phaser.Math.Between(0, 4), 2); } },
+        optA: { label: 'Absorber', desc: '+4 clientes urgentes', apply(g) { for (let i = 0; i < 4; i++) g.addClientOfType(randInt(0, 4), 'urgente'); } },
+        optB: { label: 'Filtrar', desc: '-7 coins, +2 normales', cost: 7, apply(g) { g.addClientsTo(randInt(0, 4), 2); } },
     },
     {
         title: 'PLATAFORMA CAIDA', text: 'Plataforma de pagos caida — todo mas lento',
@@ -119,7 +410,7 @@ const EVENTS = [
     },
     {
         title: 'NUEVA REGULACION', text: 'Regulacion obliga a actualizar contratos',
-        optA: { label: 'Cumplir', desc: '+3 en Pre-Entrega', apply(g) { g.addClientsTo(1, 3); } },
+        optA: { label: 'Cumplir', desc: '+3 en Seguimiento', apply(g) { g.addClientsTo(1, 3); } },
         optB: { label: 'Outsource', desc: '-8 coins, +1', cost: 8, apply(g) { g.addClientsTo(1, 1); } },
     },
 ];
@@ -136,20 +427,23 @@ const ROUND_SUBS = [
     'Dia final — sobrevive',
 ];
 
-// --- Round boosts (in-game projects — tension: processes vs investment) ---
+// --- Round boosts ---
 const ROUND_BOOSTS = [
-    { name: 'Cafe',          emoji: '\u2615', investTime: 8,  desc: 'Heal +100%\nresto del round',  color: 0x8B4513 },
-    { name: 'Reporte',       emoji: '\u{1F4CB}', investTime: 10, desc: 'Velocidad +50%\nresto del round', color: 0x1F77B4 },
-    { name: 'Coordinacion',  emoji: '\u{1F4E2}', investTime: 12, desc: 'Decay -50%\nresto del round',    color: 0x4caf50 },
+    { name: 'Comite Ops',        emoji: '\u{1F91D}', investTime: 8,  desc: 'Heal +100%\nresto del dia',   color: '#E91E63' },
+    { name: 'Rev. Dashboard',    emoji: '\u{1F4CA}', investTime: 10, desc: 'Velocidad +50%\nresto del dia', color: '#2196F3' },
+    { name: 'Training Interno',  emoji: '\u{1F393}', investTime: 12, desc: 'Decay -50%\nresto del dia',    color: '#FF9800' },
 ];
-const BOOST_W = 130, BOOST_H = 60;
-const BOOST_X = [130, 320, 510];
-const BOOST_Y = 650;
+const BOOST_W = 170, BOOST_H = 80;
+const BOOST_X = [115, 320, 525];
+const BOOST_Y = 720;
 
 // --- Utils ---
 function fmtTime(s) { return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }
-function hpColor(hp) { return hp > 60 ? 0x4CAF50 : hp > 30 ? 0xFFC107 : 0xF44336; }
+function hpColor(hp) { return hp > 60 ? '#4CAF50' : hp > 30 ? '#FFC107' : '#F44336'; }
 function getComboTier(c) { return COMBO_TIERS.find(t => c >= t.min); }
+function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+function randFloat(a, b) { return Math.random() * (b - a) + a; }
+function randItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 function freshGameState() {
     return {
@@ -158,1648 +452,2397 @@ function freshGameState() {
     };
 }
 
-// --- Draw warm wood floor background ---
-function drawWoodBackground(scene) {
-    const gfx = scene.add.graphics().setDepth(0);
-    // Solid warm tan/brown
-    gfx.fillStyle(0xC4956A, 1);
-    gfx.fillRect(0, 0, W, H);
-    // Subtle floor board lines every 80px
-    for (let y = 80; y < H; y += 80) {
-        gfx.lineStyle(1, 0xA07850, 0.1);
-        gfx.lineBetween(0, y, W, y);
-    }
-    // Very subtle vertical grain
-    for (let x = 160; x < W; x += 160) {
-        gfx.lineStyle(1, 0xA07850, 0.05);
-        gfx.lineBetween(x, 0, x, H);
-    }
-    return gfx;
+// --- Canvas helpers ---
+function fillRoundRect(x, y, w, h, r) {
+    if (r > w / 2) r = w / 2;
+    if (r > h / 2) r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.fill();
 }
 
-// --- Draw blocky pixel-art worker ---
-function drawWorker(gfx, cx, cy, shirtColor, skinColor, hairColor, armOffset, shakeX) {
-    const x = cx + (shakeX || 0);
-    const y = cy;
-    // Shadow
-    gfx.fillStyle(0x000000, 0.2);
-    gfx.fillEllipse(x, y + 26, 22, 6);
-    // Body (shirt)
-    gfx.fillStyle(shirtColor, 1);
-    gfx.fillRect(x - 9, y - 6, 18, 22);
-    // Arms
-    gfx.fillStyle(shirtColor, 1);
-    gfx.fillRect(x - 14, y - 4 + armOffset, 5, 14);
-    gfx.fillRect(x + 9, y - 4 + armOffset, 5, 14);
-    // Hands (skin)
-    gfx.fillStyle(skinColor, 1);
-    gfx.fillRect(x - 13, y + 10 + armOffset, 4, 4);
-    gfx.fillRect(x + 10, y + 10 + armOffset, 4, 4);
-    // Head
-    gfx.fillStyle(skinColor, 1);
-    gfx.fillRect(x - 9, y - 24, 18, 18);
+function strokeRoundRect(x, y, w, h, r) {
+    if (r > w / 2) r = w / 2;
+    if (r > h / 2) r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.stroke();
+}
+
+function fillEllipse(cx, cy, rx, ry) {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+// ===================================================================
+// BACKGROUND DRAWING FUNCTIONS
+// ===================================================================
+
+// --- Draw wood plank background (for game/shop) ---
+function drawWoodBackground() {
+    const plankH = 48;
+    const browns = ['#8B5E3C', '#7A5232', '#9B6B45', '#8B5E3C', '#7A5232', '#9B6B45', '#8B5E3C', '#7A5232', '#9B6B45', '#8B5E3C',
+                    '#7A5232', '#9B6B45', '#8B5E3C', '#7A5232', '#9B6B45', '#8B5E3C', '#7A5232', '#9B6B45', '#8B5E3C', '#7A5232'];
+    for (let i = 0; i * plankH < H; i++) {
+        const py = i * plankH;
+        ctx.fillStyle = browns[i % browns.length];
+        ctx.fillRect(0, py, W, plankH);
+        // Highlight on top of plank
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillRect(0, py, W, 2);
+        // Dark line between planks
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(0, py + plankH - 1, W, 2);
+        // Subtle wood grain lines
+        ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+        ctx.lineWidth = 1;
+        for (let g = 0; g < 3; g++) {
+            const gy = py + 8 + g * 14;
+            ctx.beginPath();
+            ctx.moveTo(0, gy);
+            for (let gx = 0; gx < W; gx += 40) {
+                ctx.lineTo(gx + 20, gy + (g % 2 === 0 ? 2 : -2));
+                ctx.lineTo(gx + 40, gy);
+            }
+            ctx.stroke();
+        }
+    }
+}
+
+// --- Draw vertical stripes background (for menu/end) ---
+function drawStripesBackground(color1, color2) {
+    const stripeW = 44;
+    for (let sx = 0; sx < W; sx += stripeW) {
+        ctx.fillStyle = (Math.floor(sx / stripeW) % 2 === 0) ? color1 : color2;
+        ctx.fillRect(sx, 0, stripeW, H);
+    }
+}
+
+// ===================================================================
+// CHIBI CHARACTER DRAWING
+// ===================================================================
+
+// --- Draw chibi worker ---
+function drawWorker(cx, cy, shirtColor, skinColor, hairColor, armOffset, shakeX, scale) {
+    const s = scale || 1;
+    ctx.save();
+    ctx.translate(cx + (shakeX || 0), cy);
+    ctx.scale(s, s);
+    const x = 0, y = 0;
+    const helmetIdx = WORKER_SHIRTS.indexOf(shirtColor);
+    const helmetColor = WORKER_HELMETS[helmetIdx >= 0 ? helmetIdx : 0];
+
+    // Shadow under character
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    fillEllipse(x, y + 30, 16, 4);
+
+    // Body (small rectangle, shirt color)
+    ctx.fillStyle = shirtColor;
+    fillRoundRect(x - 8, y + 2, 16, 16, 3);
+
+    // Arms (stubby rectangles on sides)
+    ctx.fillStyle = shirtColor;
+    fillRoundRect(x - 13, y + 3 + armOffset, 5, 12, 2);
+    fillRoundRect(x + 8, y + 3 + armOffset, 5, 12, 2);
+
+    // Hands (tiny skin circles)
+    ctx.fillStyle = skinColor;
+    ctx.beginPath(); ctx.arc(x - 10, y + 16 + armOffset, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 10, y + 16 + armOffset, 3, 0, Math.PI * 2); ctx.fill();
+
+    // Legs (tiny stumps)
+    ctx.fillStyle = '#444';
+    fillRoundRect(x - 6, y + 18, 5, 8, 2);
+    fillRoundRect(x + 1, y + 18, 5, 8, 2);
+
+    // Shoes
+    ctx.fillStyle = '#333';
+    fillRoundRect(x - 7, y + 24, 6, 4, 2);
+    fillRoundRect(x + 1, y + 24, 6, 4, 2);
+
+    // HEAD (big square, ~60% of character height)
+    const headW = 26, headH = 24;
+    ctx.fillStyle = skinColor;
+    fillRoundRect(x - headW / 2, y - 24, headW, headH, 5);
+
     // Hair
-    gfx.fillStyle(hairColor, 1);
-    gfx.fillRect(x - 9, y - 29, 18, 5);
-    // Eyes
-    gfx.fillStyle(0x000000, 1);
-    gfx.fillRect(x - 5, y - 18, 3, 3);
-    gfx.fillRect(x + 3, y - 18, 3, 3);
+    ctx.fillStyle = hairColor;
+    fillRoundRect(x - headW / 2, y - 28, headW, 8, 4);
+    // Hair side bits
+    fillRoundRect(x - headW / 2 - 1, y - 24, 3, 8, 1);
+    fillRoundRect(x + headW / 2 - 2, y - 24, 3, 8, 1);
+
+    // Safety helmet on top
+    ctx.fillStyle = helmetColor;
+    fillRoundRect(x - 14, y - 30, 28, 8, 4);
+    // Helmet brim
+    ctx.fillStyle = helmetColor;
+    fillRoundRect(x - 16, y - 23, 32, 3, 1);
+
+    // Eyes (big white circles with black pupils)
+    // Left eye
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x - 6, y - 14, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(x - 5, y - 13, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Eye shine
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x - 4, y - 15, 1.2, 0, Math.PI * 2); ctx.fill();
+
+    // Right eye
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x + 6, y - 14, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(x + 7, y - 13, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Eye shine
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x + 8, y - 15, 1.2, 0, Math.PI * 2); ctx.fill();
+
+    // Eyebrows (thick, angled down = working hard)
+    ctx.strokeStyle = hairColor; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(x - 10, y - 21); ctx.lineTo(x - 3, y - 19); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 10, y - 21); ctx.lineTo(x + 3, y - 19); ctx.stroke();
+
+    // Mouth (small wide rectangle / smile)
+    ctx.fillStyle = '#C0392B';
+    fillRoundRect(x - 4, y - 6, 8, 3, 1.5);
+
+    ctx.restore();
 }
 
-// --- Draw boss character (larger) ---
-function drawBoss(gfx, cx, cy, armOffset, comboHigh, faceRed) {
-    const x = cx;
-    const y = cy;
+// --- Draw mini client figure (tiny person silhouette) ---
+function drawMiniClient(cx, cy, color, isFirst) {
+    const s = isFirst ? 1.2 : 1;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(s, s);
+    // Head
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(0, -6, 3, 0, Math.PI * 2); ctx.fill();
+    // Body
+    ctx.fillRect(-2, -3, 4, 7);
+    // Legs
+    ctx.fillRect(-2, 4, 2, 4);
+    ctx.fillRect(1, 4, 2, 4);
+    ctx.restore();
+}
+
+// --- Draw motorcycle (for Entrega station) ---
+function drawMotorcycle(cx, cy) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    // Wheels
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(-10, 8, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(12, 8, 6, 0, Math.PI * 2); ctx.fill();
+    // Wheel hubs
+    ctx.fillStyle = '#888';
+    ctx.beginPath(); ctx.arc(-10, 8, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(12, 8, 2, 0, Math.PI * 2); ctx.fill();
+    // Frame
+    ctx.strokeStyle = '#E53935'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-10, 8); ctx.lineTo(-2, -2); ctx.lineTo(8, -2); ctx.lineTo(12, 8);
+    ctx.stroke();
+    // Seat
+    ctx.fillStyle = '#5D3A1A';
+    fillRoundRect(-4, -6, 12, 4, 2);
+    // Handlebar
+    ctx.strokeStyle = '#666'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(8, -2); ctx.lineTo(12, -8); ctx.stroke();
+    // Headlight
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath(); ctx.arc(14, -4, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+}
+
+// --- Draw chibi boss ---
+function drawBoss(cx, cy, armOffset, comboHigh, faceRed) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1.3, 1.3);
+    const x = 0, y = 0;
+    const scale = 1.5;
+
     // Shadow
-    gfx.fillStyle(0x000000, 0.2);
-    gfx.fillEllipse(x, y + 38, 34, 8);
-    // Body (dark suit)
-    gfx.fillStyle(0x1B2A4A, 1);
-    gfx.fillRect(x - 14, y - 8, 28, 34);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    fillEllipse(x, y + 42, 22, 5);
+
+    // Body (dark suit, small rectangle)
+    ctx.fillStyle = '#1B2A4A';
+    fillRoundRect(x - 12 * scale, y - 4, 24 * scale, 20 * scale, 4);
+
     // Arms
-    gfx.fillStyle(0x1B2A4A, 1);
-    gfx.fillRect(x - 21, y - 5 + armOffset, 7, 22);
-    gfx.fillRect(x + 14, y - 5 + armOffset, 7, 22);
+    ctx.fillStyle = '#1B2A4A';
+    fillRoundRect(x - 16 * scale, y - 2 + armOffset, 6 * scale, 16 * scale, 3);
+    fillRoundRect(x + 10 * scale, y - 2 + armOffset, 6 * scale, 16 * scale, 3);
+
     // Hands
-    gfx.fillStyle(0xFFD5A0, 1);
-    gfx.fillRect(x - 20, y + 17 + armOffset, 6, 5);
-    gfx.fillRect(x + 15, y + 17 + armOffset, 6, 5);
-    // Head
-    const headColor = faceRed ? 0xFF6666 : 0xFFD5A0;
-    gfx.fillStyle(headColor, 1);
-    gfx.fillRect(x - 14, y - 36, 28, 28);
-    // Hair
-    gfx.fillStyle(0x333333, 1);
-    gfx.fillRect(x - 14, y - 43, 28, 7);
-    // Eyes
-    gfx.fillStyle(0x000000, 1);
-    gfx.fillRect(x - 8, y - 26, 4, 4);
-    gfx.fillRect(x + 5, y - 26, 4, 4);
-    // Angry eyebrows (angled lines)
-    gfx.lineStyle(2, 0x000000, 1);
-    gfx.lineBetween(x - 10, y - 32, x - 4, y - 30);
-    gfx.lineBetween(x + 10, y - 32, x + 4, y - 30);
+    ctx.fillStyle = '#FFCC99';
+    ctx.beginPath(); ctx.arc(x - 13 * scale, y + 18 + armOffset, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 13 * scale, y + 18 + armOffset, 4, 0, Math.PI * 2); ctx.fill();
+
+    // Legs (tiny)
+    ctx.fillStyle = '#1B2A4A';
+    fillRoundRect(x - 8, y + 26, 7, 10, 2);
+    fillRoundRect(x + 1, y + 26, 7, 10, 2);
+
+    // Shoes
+    ctx.fillStyle = '#111';
+    fillRoundRect(x - 9, y + 34, 8, 5, 2);
+    fillRoundRect(x + 1, y + 34, 8, 5, 2);
+
+    // Red tie
+    ctx.fillStyle = '#CC0000';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 4);
+    ctx.lineTo(x - 4, y + 6);
+    ctx.lineTo(x, y + 14);
+    ctx.lineTo(x + 4, y + 6);
+    ctx.closePath();
+    ctx.fill();
+    // Tie knot
+    ctx.fillStyle = '#990000';
+    fillRoundRect(x - 3, y - 6, 6, 4, 2);
+
+    // HEAD (big square, chibi)
+    const headW = 36, headH = 34;
+    ctx.fillStyle = faceRed ? '#FF8888' : '#FFCC99';
+    fillRoundRect(x - headW / 2, y - 42, headW, headH, 7);
+
+    // Hair (slicked back, dark)
+    ctx.fillStyle = '#222222';
+    fillRoundRect(x - headW / 2, y - 48, headW, 12, 6);
+    // Side hair
+    fillRoundRect(x - headW / 2 - 1, y - 42, 4, 10, 2);
+    fillRoundRect(x + headW / 2 - 3, y - 42, 4, 10, 2);
+
+    // Eyes (big white circles with black pupils - bigger for boss)
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x - 8, y - 28, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(x - 7, y - 27, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x - 6, y - 30, 1.5, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x + 8, y - 28, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(x + 9, y - 27, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x + 10, y - 30, 1.5, 0, Math.PI * 2); ctx.fill();
+
+    // Angry eyebrows (V shape - thick)
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.moveTo(x - 15, y - 38); ctx.lineTo(x - 4, y - 34); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 15, y - 38); ctx.lineTo(x + 4, y - 34); ctx.stroke();
+
     // Mouth
-    gfx.lineStyle(2, 0x000000, 0.6);
-    gfx.lineBetween(x - 5, y - 14, x + 5, y - 14);
-    // Tie
-    gfx.fillStyle(0xCC0000, 1);
-    gfx.fillRect(x - 2, y - 8, 4, 14);
-    gfx.fillTriangle(x, y + 6, x - 4, y - 2, x + 4, y - 2);
+    if (comboHigh) {
+        // Smile when combo is high
+        ctx.strokeStyle = '#C0392B'; ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(x, y - 16, 6, 0.1 * Math.PI, 0.9 * Math.PI);
+        ctx.stroke();
+    } else {
+        // Frown
+        ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(x, y - 12, 5, 1.1 * Math.PI, 1.9 * Math.PI);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+// ===================================================================
+// COIN ICON DRAWING
+// ===================================================================
+function drawCoinIcon(x, y, radius) {
+    // Yellow coin circle
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+    // Inner ring
+    ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, radius - 2, 0, Math.PI * 2); ctx.stroke();
+    // $ sign
+    ctx.fillStyle = '#8B6914';
+    ctx.font = `bold ${Math.round(radius * 1.2)}px 'Nunito', Arial, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('$', x, y + 1);
+}
+
+// ===================================================================
+// ANIMATION SYSTEM (replaces Phaser tweens)
+// ===================================================================
+let tweens = [];
+
+function addTween(obj) {
+    // obj: { target, props: {prop: targetVal}, duration, delay, ease, yoyo, repeat, onComplete }
+    const t = {
+        target: obj.target,
+        props: {},
+        duration: obj.duration || 300,
+        delay: obj.delay || 0,
+        elapsed: 0,
+        ease: obj.ease || 'linear',
+        yoyo: obj.yoyo || false,
+        repeat: obj.repeat || 0,
+        onComplete: obj.onComplete || null,
+        direction: 1,
+        repeatCount: 0,
+    };
+    for (const [k, v] of Object.entries(obj.props)) {
+        t.props[k] = { start: obj.target[k] !== undefined ? obj.target[k] : 0, end: v };
+    }
+    tweens.push(t);
+    return t;
+}
+
+function easeFunc(name, p) {
+    if (name === 'linear') return p;
+    if (name === 'Power2') return p * p;
+    if (name === 'Back.easeOut') {
+        const s = 1.70158;
+        const p1 = p - 1;
+        return p1 * p1 * ((s + 1) * p1 + s) + 1;
+    }
+    return p;
+}
+
+function updateTweens(dt) {
+    for (let i = tweens.length - 1; i >= 0; i--) {
+        const t = tweens[i];
+        if (t.delay > 0) { t.delay -= dt * 1000; continue; }
+        t.elapsed += dt * 1000;
+        let progress = Math.min(1, t.elapsed / t.duration);
+        let eased = easeFunc(t.ease, t.direction > 0 ? progress : 1 - progress);
+
+        for (const [k, v] of Object.entries(t.props)) {
+            t.target[k] = v.start + (v.end - v.start) * eased;
+        }
+
+        if (progress >= 1) {
+            if (t.yoyo && t.direction > 0) {
+                t.direction = -1;
+                t.elapsed = 0;
+            } else if (t.repeat === -1 || t.repeatCount < t.repeat) {
+                t.direction = 1;
+                t.elapsed = 0;
+                t.repeatCount++;
+            } else {
+                // Set final values
+                for (const [k, v] of Object.entries(t.props)) {
+                    t.target[k] = t.yoyo ? v.start : v.end;
+                }
+                if (t.onComplete) t.onComplete();
+                tweens.splice(i, 1);
+            }
+        }
+    }
+}
+
+function killTweensOf(target) {
+    tweens = tweens.filter(t => t.target !== target);
+}
+
+// ===================================================================
+// PARTICLE SYSTEM
+// ===================================================================
+let particles = [];
+
+function spawnParticle(x, y, vx, vy, size, color, life, rotSpeed) {
+    particles.push({ x, y, vx, vy, size, color, life, maxLife: life, rot: 0, rotSpeed: rotSpeed || 0 });
+}
+
+function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.rot += p.rotSpeed * dt;
+        if (p.life <= 0) { particles.splice(i, 1); }
+    }
+}
+
+function drawParticles() {
+    for (const p of particles) {
+        const alpha = Math.max(0, p.life / p.maxLife);
+        const scale = 0.2 + 0.8 * alpha;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        const s = p.size * scale;
+        // Mix of squares and circles for confetti
+        if (Math.random() > 0.5) {
+            ctx.fillRect(-s / 2, -s / 2, s, s);
+        } else {
+            ctx.beginPath(); ctx.arc(0, 0, s / 2, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+}
+
+// ===================================================================
+// FLOATING TEXT SYSTEM
+// ===================================================================
+let floatingTexts = [];
+
+function floatText(x, y, text, color) {
+    // Use DOM-based floating text for crisp rendering
+    const el = document.createElement('div');
+    el.className = 'float-text';
+    el.textContent = text;
+    el.style.color = color;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.transform = 'translateX(-50%)';
+    document.getElementById('dom-layer').appendChild(el);
+    setTimeout(() => el.remove(), 500);
+}
+
+// ===================================================================
+// SCREEN MANAGEMENT
+// ===================================================================
+let currentScreen = null;
+
+function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById('screen-' + name);
+    if (el) el.classList.add('active');
+    currentScreen = name;
+}
+
+function fadeTransition(from, toFn) {
+    container.classList.add('fade-out');
+    setTimeout(() => {
+        container.classList.remove('fade-out');
+        toFn();
+        container.classList.add('fade-in');
+        setTimeout(() => container.classList.remove('fade-in'), 400);
+    }, 300);
+}
+
+function flashScreen(r, g, b) {
+    const el = document.createElement('div');
+    el.className = 'flash-overlay';
+    el.style.background = `rgb(${r},${g},${b})`;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 200);
+}
+
+function shakeScreen() {
+    container.classList.add('shake');
+    setTimeout(() => container.classList.remove('shake'), 200);
+}
+
+// ===================================================================
+// VIGNETTE (red edge flash on client loss)
+// ===================================================================
+let vignetteAlpha = 0;
+
+function drawVignette() {
+    if (vignetteAlpha <= 0) return;
+    const a = vignetteAlpha * 0.6;
+    // Top
+    const gt = ctx.createLinearGradient(0, 0, 0, 60);
+    gt.addColorStop(0, `rgba(255,0,0,${a})`);
+    gt.addColorStop(1, 'rgba(255,0,0,0)');
+    ctx.fillStyle = gt; ctx.fillRect(0, 0, W, 60);
+    // Bottom
+    const gb = ctx.createLinearGradient(0, H - 60, 0, H);
+    gb.addColorStop(0, 'rgba(255,0,0,0)');
+    gb.addColorStop(1, `rgba(255,0,0,${a})`);
+    ctx.fillStyle = gb; ctx.fillRect(0, H - 60, W, 60);
+    // Left
+    const gl = ctx.createLinearGradient(0, 0, 60, 0);
+    gl.addColorStop(0, `rgba(255,0,0,${a})`);
+    gl.addColorStop(1, 'rgba(255,0,0,0)');
+    ctx.fillStyle = gl; ctx.fillRect(0, 0, 60, H);
+    // Right
+    const gr = ctx.createLinearGradient(W - 60, 0, W, 0);
+    gr.addColorStop(0, 'rgba(255,0,0,0)');
+    gr.addColorStop(1, `rgba(255,0,0,${a})`);
+    ctx.fillStyle = gr; ctx.fillRect(W - 60, 0, 60, H);
+}
+
+// ===================================================================
+// CONVEYOR BELT DRAWING
+// ===================================================================
+let conveyorOffset = 0;
+
+function drawConveyorBelt(x, y, w, h) {
+    // Gray conveyor base
+    ctx.fillStyle = '#666';
+    fillRoundRect(x, y, w, h, 4);
+
+    // Animated diagonal lines
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 3;
+    const spacing = 14;
+    for (let lx = -h + (conveyorOffset % spacing); lx < w + h; lx += spacing) {
+        ctx.beginPath();
+        ctx.moveTo(x + lx, y + h);
+        ctx.lineTo(x + lx + h, y);
+        ctx.stroke();
+    }
+    ctx.restore();
+
+    // Conveyor edges (darker)
+    ctx.fillStyle = '#555';
+    fillRoundRect(x, y, w, 2, 1);
+    fillRoundRect(x, y + h - 2, w, 2, 1);
+
+    // Rollers at edges
+    ctx.fillStyle = '#888';
+    ctx.beginPath(); ctx.arc(x + 4, y + h / 2, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + w - 4, y + h / 2, 4, 0, Math.PI * 2); ctx.fill();
 }
 
 // ===================================================================
 // MENU SCENE
 // ===================================================================
 
-class MenuScene extends Phaser.Scene {
-    constructor() { super('MenuScene'); }
+function drawMenuScene() {
+    // Vertical stripes background (soft yellow tones)
+    drawStripesBackground('#FFF5D6', '#FFEDD0');
 
-    create() {
-        this.cameras.main.fadeIn(400, 0xC4, 0x95, 0x6A);
+    // Title panel (wood plank style)
+    ctx.fillStyle = '#8B5E3C';
+    fillRoundRect(W / 2 - 280, 30, 560, 120, 16);
+    // Wood grain on title panel
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    for (let ly = 40; ly < 140; ly += 12) {
+        ctx.fillRect(W / 2 - 275, ly, 550, 1);
+    }
+    // Panel border highlight
+    ctx.strokeStyle = '#5D3A1A'; ctx.lineWidth = 3;
+    strokeRoundRect(W / 2 - 280, 30, 560, 120, 16);
 
-        drawWoodBackground(this);
+    ctx.font = '900 48px "Nunito", "Trebuchet MS", Arial, sans-serif';
+    ctx.fillStyle = '#FFD700';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 5;
+    ctx.strokeText('UN DIA EN OPS', W / 2, 70);
+    ctx.fillText('UN DIA EN OPS', W / 2, 70);
 
-        // Title area
-        const titlePanel = this.add.graphics().setDepth(1);
-        titlePanel.fillStyle(0x654321, 0.85);
-        titlePanel.fillRoundedRect(W / 2 - 280, 30, 560, 120, 16);
+    ctx.font = '700 14px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#D2B48C';
+    ctx.lineWidth = 0;
+    ctx.fillText('v2 — Factory Game — Duppla', W / 2, 120);
 
-        this.add.text(W / 2, 65, 'UN DIA EN OPS', {
-            fontSize: '44px', fontFamily: 'Arial Black, Arial, sans-serif',
-            color: '#FFD700', fontStyle: 'bold',
-            stroke: '#1a1a1a', strokeThickness: 4
-        }).setOrigin(0.5).setDepth(2);
-        this.add.text(W / 2, 115, 'v2 — Factory Game — Duppla', {
-            fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#D2B48C'
-        }).setOrigin(0.5).setDepth(2);
-
-        // Workers preview grid (same layout as game)
-        const previewGfx = this.add.graphics().setDepth(1);
-        const previewPositions = [
-            { x: 170, y: 230 }, { x: 320, y: 230 }, { x: 470, y: 230 },
-            { x: 245, y: 310 }, { x: 395, y: 310 },
-        ];
-        for (let i = 0; i < 5; i++) {
-            const px = previewPositions[i].x;
-            const py = previewPositions[i].y;
-            // Small workstation
-            previewGfx.fillStyle(0xB8D4E3, 1);
-            previewGfx.fillRect(px - 30, py + 18, 60, 8);
-            previewGfx.fillStyle(0x666666, 1);
-            previewGfx.fillRect(px - 30, py + 26, 60, 2);
-            // Small worker
-            drawWorker(previewGfx, px, py, WORKER_SHIRTS[i], WORKER_SKINS[i], WORKER_HAIR[i], 0, 0);
-            // Name
-            this.add.text(px, py + 38, PROC_DATA[i].name, {
-                fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
-            }).setOrigin(0.5).setDepth(2);
+    // Preview: 5 station desks with a single worker that bounces
+    const previewPositions = [
+        { x: 120, y: 240 }, { x: 260, y: 240 }, { x: 400, y: 240 },
+        { x: 190, y: 320 }, { x: 330, y: 320 },
+    ];
+    const PREVIEW_COLORS = ['#4CAF50', '#2196F3', '#E53935', '#43A047', '#FFD700'];
+    for (let i = 0; i < 5; i++) {
+        const px = previewPositions[i].x, py = previewPositions[i].y;
+        // Colored platform per station
+        ctx.fillStyle = PREVIEW_COLORS[i];
+        fillRoundRect(px - 35, py + 18, 70, 14, 4);
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        fillRoundRect(px - 35, py + 28, 70, 4, 2);
+        // Station emoji
+        ctx.font = '18px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(PROC_DATA[i].emoji, px, py - 2);
+        ctx.font = '900 9px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#5D3A1A';
+        ctx.fillText(PROC_DATA[i].name, px, py + 38);
+        // Arrows between stations (top row)
+        if (i < 2) {
+            ctx.font = '14px Arial'; ctx.fillStyle = '#FFD700';
+            ctx.fillText('\u2192', (previewPositions[i].x + previewPositions[i + 1].x) / 2, py);
         }
+    }
+    // Arrow from top row to bottom
+    ctx.font = '14px Arial'; ctx.fillStyle = '#FFD700';
+    ctx.fillText('\u2935', 460, 280);
+    // Arrow between bottom stations
+    ctx.fillText('\u2192', (previewPositions[3].x + previewPositions[4].x) / 2, 320);
+    // Exit arrow
+    ctx.fillText('\u2192\u2705', 395, 320);
 
-        // Rules panel
-        const rulesPanel = this.add.graphics().setDepth(1);
-        rulesPanel.fillStyle(0xFFFFFF, 0.5);
-        rulesPanel.fillRoundedRect(W / 2 - 270, 380, 540, 190, 12);
+    // Single worker bouncing between stations
+    const bounceIdx = Math.floor((Date.now() / 800) % 5);
+    const bp = previewPositions[bounceIdx];
+    drawWorker(bp.x, bp.y - 2, '#2196F3', '#FFD5A0', '#333333', Math.sin(Date.now() / 150) * 4, 0, 1.1);
 
-        const rules = [
-            '\u{1F3E5}  Click en ESTACIONES para restaurar su salud',
-            '\u{1FA99}  Cada cliente exitoso = coins para la tienda',
-            '\u{1F525}  Combo: clientes sin perder = multiplicador de coins',
-            '\u{1F6D2}  Compra mejoras entre dias para sobrevivir',
-            '',
-            '\u25CF Normal (3 coins)   \u2605 VIP (5 coins)   ! Urgente (4 coins)',
-            '',
-            '8 dias  \u2022  90s cada uno  \u2022  Dificultad creciente  \u2022  ~15 min total',
-        ];
-        this.add.text(W / 2, 475, rules.join('\n'), {
-            fontSize: '13px', fontFamily: 'Arial, sans-serif',
-            color: '#333333', align: 'center', lineSpacing: 7
-        }).setOrigin(0.5).setDepth(2);
+    // Rules panel (wood plank texture)
+    ctx.fillStyle = '#8B5E3C';
+    fillRoundRect(W / 2 - 270, 380, 540, 190, 14);
+    // Wood grain
+    for (let ly = 390; ly < 560; ly += 10) {
+        ctx.fillStyle = (Math.floor((ly - 390) / 10) % 2 === 0) ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+        ctx.fillRect(W / 2 - 265, ly, 530, 10);
+    }
+    ctx.strokeStyle = '#5D3A1A'; ctx.lineWidth = 2;
+    strokeRoundRect(W / 2 - 270, 380, 540, 190, 14);
 
-        // Flywheel banner
-        const fg = this.add.graphics().setDepth(1);
-        fg.fillStyle(0x8B4513, 1); fg.fillRoundedRect(W / 2 - 270, 600, 540, 34, 8);
-        fg.lineStyle(1, 0x654321, 1); fg.strokeRoundedRect(W / 2 - 270, 600, 540, 34, 8);
-        this.add.text(W / 2, 617, '\u{1F504}  Mas exitos \u2192 Menor riesgo \u2192 Mejor tasa \u2192 Mas acceso \u2192 Loop', {
-            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#FFD700', fontStyle: 'italic'
-        }).setOrigin(0.5).setDepth(2);
-
-        this.makeBtn(W / 2, 700, 'JUGAR', () => {
-            this.cameras.main.fadeOut(300, 0xC4, 0x95, 0x6A);
-            this.time.delayedCall(300, () => {
-                this.scene.start('GameScene', { gameState: freshGameState() });
-            });
-        });
-        this.add.text(W / 2, 800, 'Un juego de empatia operativa — Duppla 2026', {
-            fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#8B6847'
-        }).setOrigin(0.5).setDepth(2);
+    const rules = [
+        '\u{1F3C3}  Mueve tu operador entre ESTACIONES con click',
+        '\u{1F3E5}  Cada estacion se degrada — atiendela para restaurarla',
+        '\u{1FA99}  Cada cliente exitoso = coins para la tienda',
+        '\u{1F525}  Combo: clientes sin perder = multiplicador',
+        '',
+        '\u25CF Normal (3)   \u2605 VIP (5)   ! Urgente (4)',
+        '',
+        '8 dias  \u2022  90s cada uno  \u2022  ~15 min total',
+    ];
+    ctx.font = '700 12px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFF8E7';
+    ctx.textAlign = 'center';
+    let ry = 402;
+    for (const line of rules) {
+        ctx.fillText(line, W / 2, ry);
+        ry += 22;
     }
 
-    makeBtn(x, y, label, fn) {
-        const c = this.add.container(x, y).setDepth(3);
-        const bg = this.add.graphics();
-        const draw = (f, s) => {
-            bg.clear(); bg.fillStyle(f, 1); bg.fillRoundedRect(-130, -30, 260, 60, 14);
-            bg.lineStyle(3, s, 1); bg.strokeRoundedRect(-130, -30, 260, 60, 14);
-        };
-        draw(0x32CD32, 0x228B22);
-        const t = this.add.text(0, 0, label, {
-            fontSize: '24px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
-        }).setOrigin(0.5);
-        c.add([bg, t]).setSize(260, 60).setInteractive({ useHandCursor: true });
-        c.on('pointerover', () => { draw(0x3DE03D, 0x228B22); c.setScale(1.05); });
-        c.on('pointerout', () => { draw(0x32CD32, 0x228B22); c.setScale(1); });
-        c.on('pointerdown', fn);
-    }
+    // Flywheel banner
+    ctx.fillStyle = '#5D3A1A';
+    fillRoundRect(W / 2 - 270, 600, 540, 34, 10);
+    ctx.strokeStyle = '#8B5E3C'; ctx.lineWidth = 2;
+    strokeRoundRect(W / 2 - 270, 600, 540, 34, 10);
+    ctx.font = '700 italic 11px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    ctx.fillText('\u{1F504}  Mas exitos \u2192 Menor riesgo \u2192 Mejor tasa \u2192 Mas acceso \u2192 Loop', W / 2, 617);
+
+    // JUGAR button (yellow Make More style)
+    ctx.fillStyle = '#FFD700';
+    fillRoundRect(W / 2 - 130, 670, 260, 60, 16);
+    // Button shadow
+    ctx.fillStyle = '#DAA520';
+    fillRoundRect(W / 2 - 130, 726, 260, 4, 2);
+    ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 3;
+    strokeRoundRect(W / 2 - 130, 670, 260, 60, 16);
+    ctx.font = '900 26px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#5D3A1A';
+    ctx.fillText('JUGAR', W / 2, 700);
+
+    // Footer
+    ctx.font = '700 10px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#999';
+    ctx.fillText('Un juego de empatia operativa — Duppla 2026', W / 2, 800);
 }
 
 // ===================================================================
-// GAME SCENE
+// GAME STATE & SCENE
 // ===================================================================
 
-class GameScene extends Phaser.Scene {
-    constructor() { super('GameScene'); }
+let gs = null;  // global game state
+let game = null;  // current round game object
 
-    init(data) {
-        this.gs = data.gameState;
-        this.round = this.gs.round;
-
-        this.procs = PROC_DATA.map(() => ({
+function initGame(gameState) {
+    gs = gameState;
+    game = {
+        round: gs.round,
+        procs: PROC_DATA.map(() => ({
             health: 100, queue: [], processProgress: 0,
             speedMult: 1, decayMult: 1, autoHealRate: 0, isFullAuto: false,
             frozen: false, frozenTimer: 0, lossTimer: 0,
-        }));
+        })),
+        attending: -1,
+        roundScore: 0,
+        roundLost: 0,
+        roundCoins: 0,
+        roundArrived: 0,
+        combo: 0,
+        maxCombo: 0,
+        timeLeft: ROUND_TIME,
+        arrivalAccum: 0,
+        eventAccum: 0,
+        usedEvents: [],
+        eventCount: 0,
+        healMult: 1,
+        healDebuffTimer: 0,
+        healRateMult: 1,
+        eventPaused: false,
+        roundStarted: false,
+        ended: false,
+        prevComboTier: getComboTier(0),
+        bossFaceRedTimer: 0,
+        investing: -1,
+        boostState: ROUND_BOOSTS.map(() => ({ progress: 0, done: false })),
+        boostHealMult: 1,
+        boostSpeedMult: 1,
+        boostDecayMult: 1,
+        // Flash station tracking
+        stationFlashes: [0, 0, 0, 0, 0],
+        // Single worker position (smooth movement)
+        workerX: 400,
+        workerY: 130,
+        workerTargetX: 400,
+        workerTargetY: 130,
+    };
 
-        this.attending = -1;
-        this.roundScore = 0;
-        this.roundLost = 0;
-        this.roundCoins = 0;
-        this.roundArrived = 0;
-        this.combo = 0;
-        this.maxCombo = 0;
-        this.timeLeft = ROUND_TIME;
+    applyUpgrades();
+    showRoundStartOverlay();
+}
 
-        this.arrivalAccum = 0;
-        this.eventAccum = 0;
-        this.usedEvents = [];
-        this.eventCount = 0;
-        this.healMult = 1;
-        this.healDebuffTimer = 0;
-        this.healRateMult = 1;
+function applyUpgrades() {
+    const u = gs.upgrades;
+    if (u.app) game.procs[0].autoHealRate = 2;
+    if (u.dashboard) game.procs[1].speedMult *= 0.6;
+    if (u.protocolo) game.procs[2].speedMult *= 0.6;
+    if (u.debito) game.procs[3].autoHealRate = 3;
+    if (u.script) game.procs[3].speedMult *= 0.6;
+    if (u.capacita) game.healRateMult = 1.5;
+    if (u.gestion) { for (const p of game.procs) p.decayMult *= 0.7; }
+    if (u.auto) {
+        const order = [0, 2, 3, 4, 1];
+        for (const i of order) {
+            if (!game.procs[i].isFullAuto) {
+                game.procs[i].isFullAuto = true;
+                game.procs[i].autoHealRate = Math.max(game.procs[i].autoHealRate, 2);
+                break;
+            }
+        }
+    }
+}
 
-        this.eventPaused = false;
-        this.roundStarted = false;
-        this.ended = false;
+// --- Round start overlay ---
+function showRoundStartOverlay() {
+    const ovl = document.getElementById('round-start-overlay');
+    const panel = document.getElementById('round-start-panel');
+    document.getElementById('rs-day').textContent = 'DIA ' + game.round;
+    document.getElementById('rs-sub').textContent = ROUND_SUBS[game.round - 1] || '';
+    const activeUpgrades = Object.keys(gs.upgrades).length;
+    const rsUp = document.getElementById('rs-upgrades');
+    if (activeUpgrades > 0) {
+        const upEmojis = UPGRADES.filter(u => gs.upgrades[u.id]).map(u => u.emoji).join(' ');
+        rsUp.textContent = 'Mejoras activas: ' + upEmojis;
+        rsUp.style.display = 'block';
+    } else {
+        rsUp.style.display = 'none';
+    }
+    ovl.style.display = 'block';
+    // Reset animation
+    panel.style.animation = 'none';
+    panel.offsetHeight; // force reflow
+    panel.style.animation = 'panelIn 0.4s 0.05s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
 
-        this.prevComboTier = getComboTier(0);
-        this.bossFaceRedTimer = 0;
+    let dismissed = false;
+    const dismiss = () => {
+        if (dismissed) return;
+        dismissed = true;
+        ovl.style.display = 'none';
+        game.roundStarted = true;
+    };
+    ovl.onclick = dismiss;
+    // Auto-dismiss after 3 seconds
+    setTimeout(dismiss, 3000);
+}
 
-        // Round boosts (in-game projects)
-        this.investing = -1;
-        this.boostState = ROUND_BOOSTS.map(() => ({ progress: 0, done: false }));
-        this.boostHealMult = 1;
-        this.boostSpeedMult = 1;
-        this.boostDecayMult = 1;
+// --- Game interaction ---
+function clickProcess(i) {
+    if (!game || game.eventPaused || !game.roundStarted) return;
+    if (game.procs[i].frozen) {
+        floatText(PROC_POS[i].x, PROC_POS[i].y - 80, '\u2744\uFE0F CONGELADO', '#29b6f6');
+        return;
+    }
+    game.attending = i;
+    game.investing = -1;
+}
 
-        this.applyUpgrades();
+function clickBoost(j) {
+    if (!game || game.eventPaused || !game.roundStarted) return;
+    if (game.boostState[j].done) {
+        floatText(BOOST_X[j], BOOST_Y - 35, '\u2705 ACTIVO', '#4caf50');
+        return;
+    }
+    game.investing = j;
+    game.attending = -1;
+}
+
+// Wire up station click zones
+for (let i = 0; i < 5; i++) {
+    document.getElementById('stz-' + i).addEventListener('pointerdown', () => clickProcess(i));
+}
+for (let j = 0; j < 3; j++) {
+    document.getElementById('bstz-' + j).addEventListener('pointerdown', () => clickBoost(j));
+}
+
+// --- Game logic helpers ---
+function getArrivalInterval() {
+    const base = 7.0 - (game.round - 1) * 0.55;
+    return Math.max(2.5, base + randFloat(-0.4, 0.4));
+}
+
+function getClientType() {
+    const r = Math.random();
+    if (game.round >= 5 && r < 0.18) return 'urgente';
+    if (game.round >= 3 && r < 0.32) return 'vip';
+    return 'normal';
+}
+
+function getEventInterval() {
+    if (game.round <= 2) return Infinity;
+    if (game.round <= 4) return 75;
+    if (game.round <= 6) return 38;
+    return 26;
+}
+
+function getDecayScale() { return 1 + (game.round - 1) * 0.08; }
+
+// These are methods on game object for events to call via g.xxx()
+function gameAddClientsTo(procIdx, count) {
+    for (let i = 0; i < count; i++) {
+        if (game.procs[procIdx].queue.length < CLIENT_MAX) {
+            game.procs[procIdx].queue.push({ type: 'normal', age: 0 });
+            bounceQueueDot(procIdx);
+        }
+    }
+    gameFlashStation(procIdx);
+}
+
+function gameAddClientOfType(procIdx, type) {
+    if (game.procs[procIdx].queue.length < CLIENT_MAX) {
+        game.procs[procIdx].queue.push({ type, age: 0 });
+        bounceQueueDot(procIdx);
+    }
+}
+
+function gameFreezeProc(idx, dur) {
+    game.procs[idx].frozen = true;
+    game.procs[idx].frozenTimer = dur;
+    if (game.attending === idx) game.attending = -1;
+    gameFlashStation(idx);
+}
+
+function gameFlashStation(idx) {
+    game.stationFlashes[idx] = 0.5;
+}
+
+function bounceQueueDot(procIdx) {
+    // Particle burst at queue position
+    const pos = PROC_POS[procIdx];
+    spawnParticle(pos.x, pos.y + 44, 0, -20, 10, '#FF6B35', 0.3, 0);
+}
+
+function completeBoost(j) {
+    const bs = game.boostState[j];
+    bs.done = true;
+    bs.progress = ROUND_BOOSTS[j].investTime;
+    if (j === 0) game.boostHealMult = 2;
+    if (j === 1) game.boostSpeedMult = 0.6;
+    if (j === 2) game.boostDecayMult = 0.5;
+    floatText(BOOST_X[j], BOOST_Y - 35, '\u2705 ' + ROUND_BOOSTS[j].name + '!', '#4caf50');
+    flashScreen(76, 175, 80);
+    game.investing = -1;
+}
+
+// --- Process update ---
+function updateProcess(i, dt) {
+    const p = game.procs[i];
+    const data = PROC_DATA[i];
+    const dScale = getDecayScale();
+
+    // Health
+    if (game.attending === i) {
+        p.health = Math.min(100, p.health + HEAL_RATE * game.healMult * game.healRateMult * game.boostHealMult * dt);
+    } else {
+        if (p.autoHealRate > 0) p.health = Math.min(100, p.health + p.autoHealRate * dt);
+        const pressure = (1 + p.queue.length * 0.12);
+        p.health = Math.max(0, p.health - data.decay * p.decayMult * game.boostDecayMult * pressure * dScale * dt);
     }
 
-    applyUpgrades() {
-        const u = this.gs.upgrades;
-        if (u.app) this.procs[0].autoHealRate = 2;
-        if (u.dashboard) this.procs[1].speedMult *= 0.6;
-        if (u.protocolo) this.procs[2].speedMult *= 0.6;
-        if (u.debito) this.procs[3].autoHealRate = 3;
-        if (u.script) this.procs[3].speedMult *= 0.6;
-        if (u.capacita) this.healRateMult = 1.5;
-        if (u.gestion) { for (const p of this.procs) p.decayMult *= 0.7; }
-        if (u.auto) {
-            const order = [0, 2, 3, 4, 1];
-            for (const i of order) {
-                if (!this.procs[i].isFullAuto) {
-                    this.procs[i].isFullAuto = true;
-                    this.procs[i].autoHealRate = Math.max(this.procs[i].autoHealRate, 2);
-                    break;
+    // Frozen
+    if (p.frozen) {
+        p.frozenTimer -= dt;
+        if (p.frozenTimer <= 0) { p.frozen = false; p.frozenTimer = 0; }
+        return;
+    }
+
+    // Processing
+    let hf;
+    if (p.health > 50) hf = 1;
+    else if (p.health > 25) hf = 0.5 + (p.health - 25) / 50;
+    else hf = 0;
+
+    const autoBoost = (p.isFullAuto && game.attending !== i) ? 0.6 : 0;
+    const attendBoost = (game.attending === i) ? 1.3 : 0;
+    const speed = Math.max(attendBoost, autoBoost);
+
+    if (hf > 0 && p.queue.length > 0 && speed > 0) {
+        const et = data.processTime * p.speedMult * game.boostSpeedMult * CLIENT_TYPES[p.queue[0].type].timeMult;
+        p.processProgress += (dt * speed * hf) / et;
+
+        while (p.processProgress >= 1 && p.queue.length > 0) {
+            p.processProgress -= 1;
+            const client = p.queue.shift();
+            if (i < 4) {
+                if (game.procs[i + 1].queue.length < CLIENT_MAX) {
+                    game.procs[i + 1].queue.push({ type: client.type, age: 0 });
+                    transferAnim(i, i + 1, client.type);
+                } else {
+                    clientLost(i + 1);
                 }
+            } else {
+                clientSuccess(client.type);
             }
         }
     }
 
-    create() {
-        this.cameras.main.fadeIn(400, 0xC4, 0x95, 0x6A);
-
-        // Wood background
-        drawWoodBackground(this);
-
-        // Red vignette overlay for client loss
-        this.vignetteGfx = this.add.graphics().setDepth(85).setAlpha(0);
-        this.drawVignette();
-
-        // Golden tint overlay for x3 combo
-        this.goldenTint = this.add.rectangle(W / 2, H / 2, W, H, 0xffd700, 0).setDepth(1);
-
-        this.createHUD();
-        this.createBoss();
-        this.createPipeline();
-        this.createBoostPanel();
-        this.createEventOverlay();
-        this.createRoundStartOverlay();
-    }
-
-    // Draw vignette (red edges)
-    drawVignette() {
-        const g = this.vignetteGfx;
-        g.clear();
-        g.fillGradientStyle(0xff0000, 0xff0000, 0xff0000, 0xff0000, 0.6, 0.6, 0, 0);
-        g.fillRect(0, 0, W, 60);
-        g.fillGradientStyle(0xff0000, 0xff0000, 0xff0000, 0xff0000, 0, 0, 0.6, 0.6);
-        g.fillRect(0, H - 60, W, 60);
-        g.fillGradientStyle(0xff0000, 0xff0000, 0xff0000, 0xff0000, 0.6, 0, 0, 0.6);
-        g.fillRect(0, 0, 60, H);
-        g.fillGradientStyle(0xff0000, 0xff0000, 0xff0000, 0xff0000, 0, 0.6, 0.6, 0);
-        g.fillRect(W - 60, 0, 60, H);
-    }
-
-    // ---- HUD (Top bar) ----
-    createHUD() {
-        const hud = this.add.graphics().setDepth(40);
-        // Dark brown bar
-        hud.fillStyle(0x654321, 1); hud.fillRect(0, 0, W, 60);
-        hud.lineStyle(2, 0x8B4513, 1); hud.lineBetween(0, 60, W, 60);
-
-        // Stat background pills
-        const hudPills = this.add.graphics().setDepth(40);
-        const pillPositions = [
-            { x: 60, w: 100 },   // Timer
-            { x: 180, w: 100 },  // Coins
-            { x: 310, w: 90 },   // Score
-            { x: 420, w: 90 },   // Combo
-            { x: 555, w: 100 },  // Dia
-        ];
-        pillPositions.forEach(p => {
-            hudPills.fillStyle(0x8B6847, 0.6);
-            hudPills.fillRoundedRect(p.x - p.w / 2, 5, p.w, 50, 8);
-        });
-
-        const mkL = (x, t) => this.add.text(x, 10, t, {
-            fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#C4956A', letterSpacing: 1
-        }).setOrigin(0.5).setDepth(41);
-
-        mkL(60, 'TIEMPO');
-        this.timerTxt = this.add.text(60, 36, fmtTime(ROUND_TIME), {
-            fontSize: '20px', fontFamily: 'monospace', color: '#FFFFFF', fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(41);
-
-        mkL(180, 'COINS');
-        this.coinsTxt = this.add.text(180, 36, '\u{1FA99} ' + this.gs.coins, {
-            fontSize: '16px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(41);
-
-        mkL(310, 'EXITOSOS');
-        this.scoreTxt = this.add.text(310, 36, '0', {
-            fontSize: '20px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#4CAF50', fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(41);
-
-        mkL(420, 'COMBO');
-        this.comboTxt = this.add.text(420, 36, 'x1', {
-            fontSize: '18px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFFFFF', fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(41);
-
-        // Combo meter bar
-        this.comboBarGfx = this.add.graphics().setDepth(41);
-
-        this.roundTxt = this.add.text(555, 30, 'DIA ' + this.round + '/' + TOTAL_ROUNDS, {
-            fontSize: '16px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(41);
-
-        this.lostTxt = this.add.text(625, 30, '0', {
-            fontSize: '14px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FF4444', fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(41);
-        this.add.text(625, 12, 'PERDIDOS', {
-            fontSize: '7px', fontFamily: 'Arial, sans-serif', color: '#C4956A'
-        }).setOrigin(0.5).setDepth(41);
-
-        this.statusTxt = this.add.text(W / 2, 73, '', {
-            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#654321', fontStyle: 'italic'
-        }).setOrigin(0.5).setDepth(30);
-
-        // Heal debuff
-        this.healDebuffTxt = this.add.text(W / 2, H - 15, '', {
-            fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#ff4444', fontStyle: 'bold',
-            stroke: '#000000', strokeThickness: 2
-        }).setOrigin(0.5).setDepth(30).setVisible(false);
-    }
-
-    // ---- Boss area ----
-    createBoss() {
-        this.bossGfx = this.add.graphics().setDepth(10);
-        // Desk drawn in drawBossArea
-        this.bossSparkles = [];
-    }
-
-    drawBossArea() {
-        const g = this.bossGfx;
-        g.clear();
-        const bx = 320, by = 120;
-        // Desk
-        g.fillStyle(0x8B4513, 1);
-        g.fillRect(bx - 100, by + 28, 200, 20);
-        g.fillStyle(0x654321, 1);
-        g.fillRect(bx - 100, by + 48, 200, 4);
-        // Desk legs
-        g.fillStyle(0x654321, 1);
-        g.fillRect(bx - 95, by + 48, 8, 16);
-        g.fillRect(bx + 87, by + 48, 8, 16);
-
-        const time = this.time.now;
-        const armOff = Math.sin(time / 500) * 2;
-        const comboHigh = this.combo >= 8;
-        const faceRed = this.bossFaceRedTimer > 0;
-
-        drawBoss(g, bx, by, armOff, comboHigh, faceRed);
-
-        // Boss sparkle effects when combo high
-        if (comboHigh) {
-            for (let i = 0; i < 3; i++) {
-                const angle = (time / 300 + i * 2.1) % (Math.PI * 2);
-                const sx = bx + Math.cos(angle) * 35;
-                const sy = by - 20 + Math.sin(angle * 1.3) * 20;
-                const sparkleAlpha = (Math.sin(time / 200 + i) + 1) * 0.3;
-                g.fillStyle(0xFFD700, sparkleAlpha);
-                g.fillRect(sx - 2, sy - 2, 4, 4);
-                g.fillRect(sx - 1, sy - 4, 2, 8);
-                g.fillRect(sx - 4, sy - 1, 8, 2);
-            }
-        }
-
-        // Items on desk
-        g.fillStyle(0x333333, 1);
-        g.fillRect(bx - 60, by + 20, 20, 10); // laptop base
-        g.fillStyle(0x4488CC, 1);
-        g.fillRect(bx - 58, by + 6, 16, 14); // laptop screen
-        // Coffee mug
-        g.fillStyle(0xFFFFFF, 1);
-        g.fillRect(bx + 40, by + 18, 10, 12);
-        g.fillStyle(0x8B4513, 1);
-        g.fillRect(bx + 42, by + 20, 6, 4);
-    }
-
-    // ---- Pipeline (stations grid) ----
-    createPipeline() {
-        this.stGfx = []; this.stCount = []; this.stStatus = [];
-        this.stGlow = [];
-
-        for (let i = 0; i < 5; i++) {
-            const pos = PROC_POS[i];
-
-            // Glow graphics per station
-            const glowGfx = this.add.graphics().setDepth(4);
-            this.stGlow.push(glowGfx);
-
-            const gfx = this.add.graphics().setDepth(5);
-            this.stGfx.push(gfx);
-
-            const cnt = this.add.text(pos.x + PROC_W / 2 - 14, pos.y - PROC_H / 2 + 14, '', {
-                fontSize: '14px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#fff', fontStyle: 'bold'
-            }).setOrigin(0.5).setDepth(15);
-            this.stCount.push(cnt);
-
-            const sts = this.add.text(pos.x, pos.y + 68, '', {
-                fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#ff4444', fontStyle: 'bold',
-                stroke: '#000000', strokeThickness: 2
-            }).setOrigin(0.5).setDepth(15);
-            this.stStatus.push(sts);
-
-            const zone = this.add.zone(pos.x, pos.y, PROC_W + 12, PROC_H + 12)
-                .setInteractive({ useHandCursor: true }).setDepth(25);
-            zone.on('pointerdown', () => this.clickProcess(i));
-        }
-
-        // Arrival indicator
-        this.arrivalTxt = this.add.text(PROC_POS[0].x - PROC_W / 2 - 20, PROC_POS[0].y, '\u{1F464}\u2192', { fontSize: '14px' }).setOrigin(0.5).setDepth(10);
-    }
-
-    // ---- Boost panel (in-round projects) ----
-    createBoostPanel() {
-        // Label
-        this.add.text(W / 2, BOOST_Y - 35, 'PROYECTOS', {
-            fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#654321', letterSpacing: 2, fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(5);
-
-        this.boostGfx = [];
-        this.boostDoneTxt = [];
-
-        for (let j = 0; j < 3; j++) {
-            const x = BOOST_X[j];
-            const data = ROUND_BOOSTS[j];
-
-            const gfx = this.add.graphics().setDepth(5);
-            this.boostGfx.push(gfx);
-
-            this.add.text(x, BOOST_Y - 14, data.emoji, { fontSize: '18px' }).setOrigin(0.5).setDepth(10);
-            this.add.text(x, BOOST_Y + 4, data.name, {
-                fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
-            }).setOrigin(0.5).setDepth(10);
-            this.add.text(x, BOOST_Y + 18, data.investTime + 's', {
-                fontSize: '8px', fontFamily: 'Arial, sans-serif', color: '#666666'
-            }).setOrigin(0.5).setDepth(10);
-
-            const doneTxt = this.add.text(x, BOOST_Y, '\u2705', {
-                fontSize: '24px'
-            }).setOrigin(0.5).setDepth(20).setVisible(false);
-            this.boostDoneTxt.push(doneTxt);
-
-            const zone = this.add.zone(x, BOOST_Y, BOOST_W + 6, BOOST_H + 6)
-                .setInteractive({ useHandCursor: true }).setDepth(25);
-            zone.on('pointerdown', () => this.clickBoost(j));
+    // Client aging
+    for (let j = p.queue.length - 1; j >= 0; j--) {
+        p.queue[j].age += dt * CLIENT_TYPES[p.queue[j].type].ageMult;
+        if (p.queue[j].age >= CLIENT_EXPIRY) {
+            p.queue.splice(j, 1);
+            clientLost(i);
         }
     }
 
-    // ---- Event overlay ----
-    createEventOverlay() {
-        this.evtOvl = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(90).setVisible(false);
-        this.evtGlowGfx = this.add.graphics().setDepth(90).setAlpha(0);
-        this.evtGfx = this.add.graphics().setDepth(91);
-        this.evtTitle = this.add.text(W / 2, 0, '', {
-            fontSize: '24px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#1a1a1a'
-        }).setOrigin(0.5).setDepth(92).setVisible(false);
-        this.evtBody = this.add.text(W / 2, 0, '', {
-            fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#333333',
-            align: 'center', wordWrap: { width: 360 }
-        }).setOrigin(0.5).setDepth(92).setVisible(false);
-        this.evtBtnA = null; this.evtBtnB = null;
-        this.evtTimeout = 0;
-        this.evtBorderGfx = this.add.graphics().setDepth(91);
-    }
-
-    // ---- Round start ----
-    createRoundStartOverlay() {
-        this.rsElements = [];
-        const ovl = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.85).setDepth(95).setInteractive();
-        this.rsElements.push(ovl);
-
-        const container = this.add.container(W / 2, H / 2).setDepth(96);
-        container.setScale(0.8);
-        container.setAlpha(0);
-        this.rsElements.push(container);
-
-        // Brown panel
-        const g = this.add.graphics();
-        g.fillStyle(0x8B4513, 1); g.fillRoundedRect(-240, -100, 480, 200, 16);
-        g.lineStyle(3, 0x654321, 1); g.strokeRoundedRect(-240, -100, 480, 200, 16);
-        container.add(g);
-
-        // Golden pin circles at corners
-        const pins = this.add.graphics();
-        const pinPositions = [[-228, -88], [228, -88], [-228, 88], [228, 88]];
-        for (const [px, py] of pinPositions) {
-            pins.fillStyle(0xFFD700, 1); pins.fillCircle(px, py, 6);
-            pins.fillStyle(0xDAA520, 1); pins.fillCircle(px, py, 3);
+    // Client loss when process dead
+    if (p.health <= 0 && p.queue.length > 0) {
+        p.lossTimer += dt;
+        if (p.lossTimer >= LOSS_INTERVAL) {
+            p.queue.shift();
+            p.lossTimer = 0;
+            clientLost(i);
         }
-        container.add(pins);
+    } else {
+        p.lossTimer = 0;
+    }
+}
 
-        const t1 = this.add.text(0, -55, 'DIA ' + this.round, {
-            fontSize: '52px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
-            stroke: '#1a1a1a', strokeThickness: 4
-        }).setOrigin(0.5);
-        container.add(t1);
+function clientSuccess(type) {
+    const tier = getComboTier(game.combo);
+    const coins = Math.round(CLIENT_TYPES[type].value * tier.mult);
+    gs.coins += coins;
+    game.roundCoins += coins;
+    game.roundScore++;
+    game.combo++;
+    game.maxCombo = Math.max(game.maxCombo, game.combo);
+    exitAnim(type);
+    floatText(PROC_POS[4].x, PROC_POS[4].y - 80, '\u26A1 +' + coins + '\u{1FA99}', '#228B22');
+    successParticleBurst(type);
 
-        const sub = ROUND_SUBS[this.round - 1] || '';
-        const t2 = this.add.text(0, 10, sub, {
-            fontSize: '15px', fontFamily: 'Arial, sans-serif', color: '#FFFFFF'
-        }).setOrigin(0.5);
-        container.add(t2);
+    const newTier = getComboTier(game.combo);
+    if (newTier.mult > tier.mult) {
+        flashScreen(255, 200, 50);
+    }
+}
 
-        const activeUpgrades = Object.keys(this.gs.upgrades).length;
-        if (activeUpgrades > 0) {
-            const upEmojis = UPGRADES.filter(u => this.gs.upgrades[u.id]).map(u => u.emoji).join(' ');
-            const t3 = this.add.text(0, 45, 'Mejoras activas: ' + upEmojis, {
-                fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#00FF7F'
-            }).setOrigin(0.5);
-            container.add(t3);
+function successParticleBurst(type) {
+    const pos = PROC_POS[4];
+    const exitX = pos.x + PROC_W / 2 + 10;
+    const exitY = pos.y;
+    const confettiColors = ['#FF6B35', '#FFD700', '#4CAF50', '#2196F3', '#FF4444', '#00CED1', '#E91E63', '#9C27B0'];
+    const count = randInt(12, 20);
+    for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + randFloat(-0.3, 0.3);
+        const dist = randInt(30, 70);
+        const size = randInt(5, 10);
+        const color = confettiColors[randInt(0, confettiColors.length - 1)];
+        const vx = Math.cos(angle) * dist / 0.6;
+        const vy = Math.sin(angle) * dist / 0.6 + 33;
+        spawnParticle(exitX, exitY, vx, vy, size, color, 0.6, randFloat(-5, 5));
+    }
+}
+
+function clientLost(procIdx) {
+    game.roundLost++;
+    gs.totalLost++;
+    if (game.combo > 0) {
+        game.combo = 0;
+        flashScreen(200, 50, 50);
+    }
+    floatText(PROC_POS[procIdx].x, PROC_POS[procIdx].y - 80, '\u{1F480} -1', '#CC0000');
+    game.bossFaceRedTimer = 0.5;
+
+    // Orange sparks
+    const pos = PROC_POS[procIdx];
+    for (let i = 0; i < 6; i++) {
+        spawnParticle(
+            pos.x + randInt(-20, 20), pos.y + randInt(-20, 20),
+            randInt(-30, 30) / 0.4, randInt(-40, -10) / 0.4,
+            3, '#FF6B35', 0.4, 0
+        );
+    }
+
+    // Red vignette
+    vignetteAlpha = 1;
+    shakeScreen();
+}
+
+// --- Visual animations ---
+// Transfer animation (particle moving between stations)
+function transferAnim(from, to, type) {
+    const fp = PROC_POS[from], tp = PROC_POS[to];
+    const dur = 0.35;
+    const dx = (tp.x - fp.x) / dur;
+    const dy = (tp.y - fp.y) / dur;
+    spawnParticle(fp.x, fp.y + 22, dx, dy, 8, CLIENT_TYPES[type].color, dur, 0);
+}
+
+function exitAnim(type) {
+    const pos = PROC_POS[4];
+    const startX = pos.x + PROC_W / 2;
+    const startY = pos.y;
+    const dur = 0.45;
+    const dx = (W + 30 - startX) / dur;
+    const dy = (-80) / dur;
+    spawnParticle(startX, startY, dx, dy, 8, CLIENT_TYPES[type].color, dur, 0);
+}
+
+// --- Events ---
+let currentEvt = null;
+
+function triggerEvent() {
+    let avail = EVENTS.map((_, i) => i).filter(i => !game.usedEvents.includes(i));
+    if (!avail.length) { game.usedEvents = []; avail = EVENTS.map((_, i) => i); }
+    const idx = randItem(avail);
+    game.usedEvents.push(idx);
+    game.eventCount++;
+    const evt = EVENTS[idx];
+    currentEvt = { idx, evt };
+
+    game.eventPaused = true;
+    game.evtTimeout = 8;
+
+    // Show event overlay
+    const ovl = document.getElementById('event-overlay');
+    ovl.style.display = 'block';
+    document.getElementById('event-title').textContent = '\u{1F6A8} ' + evt.title;
+    document.getElementById('event-body').textContent = evt.text;
+
+    // Button A
+    document.getElementById('evt-a-label').textContent = evt.optA.label;
+    document.getElementById('evt-a-desc').textContent = evt.optA.desc;
+
+    // Button B
+    const canAffordB = evt.optB.cost === undefined || evt.optB.cost === 0 || gs.coins >= evt.optB.cost;
+    const bDesc = evt.optB.cost ? evt.optB.desc + ' (\u{1F4B0}' + evt.optB.cost + ')' : evt.optB.desc;
+    document.getElementById('evt-b-label').textContent = evt.optB.label;
+    document.getElementById('evt-b-desc').textContent = bDesc;
+
+    const btnB = document.getElementById('evt-btn-b');
+    if (!canAffordB) {
+        btnB.classList.add('evt-btn-disabled');
+        btnB.style.background = '#999';
+        btnB.style.borderColor = '#666';
+    } else {
+        btnB.classList.remove('evt-btn-disabled');
+        btnB.style.background = '#FFD700';
+        btnB.style.borderColor = '#DAA520';
+    }
+
+    // Proxy so events can use g.addClientsTo(), g.procs, g.healMult = x, etc.
+    const proxyHandler = {
+        get(target, prop) {
+            if (prop === 'procs') return game.procs;
+            if (prop === 'addClientsTo') return gameAddClientsTo;
+            if (prop === 'addClientOfType') return gameAddClientOfType;
+            if (prop === 'flashStation') return gameFlashStation;
+            if (prop === 'freezeProc') return gameFreezeProc;
+            return game[prop];
+        },
+        set(target, prop, value) {
+            game[prop] = value;
+            return true;
         }
+    };
+    const gameProxy = new Proxy({}, proxyHandler);
 
-        const t4 = this.add.text(0, 75, '[ Click para empezar ]', {
-            fontSize: '13px', fontFamily: 'Arial, sans-serif', color: '#32CD32', fontStyle: 'italic'
-        }).setOrigin(0.5);
-        container.add(t4);
+    // Event handlers
+    const btnA = document.getElementById('evt-btn-a');
+    const handleA = () => {
+        evt.optA.apply(gameProxy);
+        dismissEvent();
+    };
+    const handleB = () => {
+        if (!canAffordB) return;
+        if (evt.optB.cost) gs.coins -= evt.optB.cost;
+        evt.optB.apply(gameProxy);
+        dismissEvent();
+    };
 
-        this.tweens.add({
-            targets: container, scaleX: 1, scaleY: 1, alpha: 1,
-            duration: 400, ease: 'Back.easeOut'
-        });
+    // Remove old handlers, add new
+    btnA.onclick = handleA;
+    btnB.onclick = canAffordB ? handleB : null;
 
-        const dismissRound = () => {
-            if (this.roundStarted) return;
-            this.roundStarted = true;
-            this.tweens.add({
-                targets: container, scaleX: 1.1, scaleY: 1.1, alpha: 0,
-                duration: 200, ease: 'Power2'
-            });
-            this.tweens.add({
-                targets: ovl, alpha: 0, duration: 200,
-                onComplete: () => {
-                    this.rsElements.forEach(e => e.destroy());
-                    this.rsElements = [];
-                }
-            });
-        };
+    // Auto-apply timeout stored in game
+    currentEvt.autoApply = () => {
+        evt.optA.apply(gameProxy);
+    };
 
-        // Click to start
-        ovl.on('pointerdown', dismissRound);
-        this.time.delayedCall(600, () => this.input.once('pointerdown', dismissRound));
-        // Native JS fallback for headless environments
-        setTimeout(() => dismissRound(), 4000);
+    shakeScreen();
+}
+
+function dismissEvent() {
+    document.getElementById('event-overlay').style.display = 'none';
+    game.eventPaused = false;
+    currentEvt = null;
+}
+
+// --- End round ---
+function endRound() {
+    if (game.ended) return;
+    game.ended = true;
+
+    // Quality bonus
+    if (game.roundLost === 0) {
+        gs.coins += COIN_QUALITY_BONUS;
+        game.roundCoins += COIN_QUALITY_BONUS;
     }
 
-    // ---- Interaction ----
-    clickProcess(i) {
-        if (this.eventPaused || !this.roundStarted) return;
-        if (this.procs[i].frozen) {
-            this.floatText(PROC_POS[i].x, PROC_POS[i].y - 80, '\u2744\uFE0F CONGELADO', '#29b6f6');
-            return;
-        }
-        this.attending = i;
-        this.investing = -1;
-    }
+    gs.totalScore += game.roundScore;
+    gs.roundStats.push({
+        round: game.round, score: game.roundScore, lost: game.roundLost,
+        coins: game.roundCoins, maxCombo: game.maxCombo, arrived: game.roundArrived,
+    });
 
-    clickBoost(j) {
-        if (this.eventPaused || !this.roundStarted) return;
-        if (this.boostState[j].done) {
-            this.floatText(BOOST_X[j], BOOST_Y - 35, '\u2705 ACTIVO', '#4caf50');
-            return;
-        }
-        this.investing = j;
-        this.attending = -1;
-    }
-
-    completeBoost(j) {
-        const bs = this.boostState[j];
-        bs.done = true;
-        bs.progress = ROUND_BOOSTS[j].investTime;
-
-        if (j === 0) this.boostHealMult = 2;       // Cafe: heal +100%
-        if (j === 1) this.boostSpeedMult = 0.6;     // Reporte: speed +50% (0.6x time)
-        if (j === 2) this.boostDecayMult = 0.5;     // Coordinacion: decay -50%
-
-        this.floatText(BOOST_X[j], BOOST_Y - 35, '\u2705 ' + ROUND_BOOSTS[j].name + '!', '#4caf50');
-        this.cameras.main.flash(200, 76, 175, 80, false);
-
-        this.investing = -1;
-    }
-
-    // ---- Game logic helpers ----
-    getArrivalInterval() {
-        const base = 7.0 - (this.round - 1) * 0.55;
-        return Math.max(2.5, base + Phaser.Math.FloatBetween(-0.4, 0.4));
-    }
-
-    getClientType() {
-        const r = Math.random();
-        if (this.round >= 5 && r < 0.18) return 'urgente';
-        if (this.round >= 3 && r < 0.32) return 'vip';
-        return 'normal';
-    }
-
-    getEventInterval() {
-        if (this.round <= 2) return Infinity;
-        if (this.round <= 4) return 75;
-        if (this.round <= 6) return 38;
-        return 26;
-    }
-
-    getDecayScale() { return 1 + (this.round - 1) * 0.08; }
-
-    addClientsTo(procIdx, count) {
-        for (let i = 0; i < count; i++) {
-            if (this.procs[procIdx].queue.length < CLIENT_MAX) {
-                this.procs[procIdx].queue.push({ type: 'normal', age: 0 });
-                this.bounceQueueDot(procIdx);
-            }
-        }
-        this.flashStation(procIdx);
-    }
-
-    addClientOfType(procIdx, type) {
-        if (this.procs[procIdx].queue.length < CLIENT_MAX) {
-            this.procs[procIdx].queue.push({ type, age: 0 });
-            this.bounceQueueDot(procIdx);
-        }
-    }
-
-    bounceQueueDot(procIdx) {
-        const pos = PROC_POS[procIdx];
-        const bounce = this.add.rectangle(pos.x, pos.y + 44, 10, 10, 0xFF6B35, 0.5).setDepth(16);
-        this.tweens.add({
-            targets: bounce, scaleX: 1.5, scaleY: 1.5, alpha: 0, duration: 300, ease: 'Power2',
-            onComplete: () => bounce.destroy()
-        });
-    }
-
-    freezeProc(idx, dur) {
-        this.procs[idx].frozen = true;
-        this.procs[idx].frozenTimer = dur;
-        if (this.attending === idx) { this.attending = -1; }
-        this.flashStation(idx);
-    }
-
-    // ---- Process update ----
-    updateProcess(i, dt) {
-        const p = this.procs[i];
-        const data = PROC_DATA[i];
-        const dScale = this.getDecayScale();
-
-        // Health
-        if (this.attending === i) {
-            p.health = Math.min(100, p.health + HEAL_RATE * this.healMult * this.healRateMult * this.boostHealMult * dt);
+    fadeTransition('game', () => {
+        if (game.round < TOTAL_ROUNDS) {
+            gs.round++;
+            startShopScene();
         } else {
+            startEndScene();
+        }
+    });
+}
+
+// --- Draw Game ---
+function drawGameScene(now) {
+    drawWoodBackground();
+
+    // Golden tint for x3 combo
+    if (game.combo >= 8) {
+        const a = 0.04 + Math.sin(now / 500) * 0.02;
+        ctx.fillStyle = `rgba(255,215,0,${a})`;
+        ctx.fillRect(0, 0, W, H);
+    }
+
+    drawBossArea(now);
+    drawStations(now);
+    drawMovingWorker(now);
+    drawBoosts(now);
+    drawHUD(now);
+    drawParticles();
+    drawVignette();
+}
+
+function drawBossArea(now) {
+    const bx = 520, by = 100;
+
+    // Desk (wood plank style)
+    ctx.fillStyle = '#8B5E3C';
+    fillRoundRect(bx - 100, by + 28, 200, 20, 4);
+    // Desk highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(bx - 98, by + 29, 196, 2);
+    // Desk shadow
+    ctx.fillStyle = '#5D3A1A';
+    fillRoundRect(bx - 100, by + 46, 200, 4, 2);
+    // Desk legs
+    ctx.fillStyle = '#5D3A1A';
+    fillRoundRect(bx - 95, by + 48, 8, 16, 2);
+    fillRoundRect(bx + 87, by + 48, 8, 16, 2);
+
+    const armOff = Math.sin(now / 500) * 2;
+    const comboHigh = game.combo >= 8;
+    const faceRed = game.bossFaceRedTimer > 0;
+
+    drawBoss(bx, by, armOff, comboHigh, faceRed);
+
+    // Sparkles when combo high
+    if (comboHigh) {
+        for (let i = 0; i < 3; i++) {
+            const angle = (now / 300 + i * 2.1) % (Math.PI * 2);
+            const sx = bx + Math.cos(angle) * 40;
+            const sy = by - 25 + Math.sin(angle * 1.3) * 20;
+            const sparkleAlpha = (Math.sin(now / 200 + i) + 1) * 0.4;
+            ctx.fillStyle = `rgba(255,215,0,${sparkleAlpha})`;
+            // Star sparkle
+            ctx.fillRect(sx - 2, sy - 2, 4, 4);
+            ctx.fillRect(sx - 1, sy - 5, 2, 10);
+            ctx.fillRect(sx - 5, sy - 1, 10, 2);
+        }
+    }
+
+    // Items on desk - Laptop
+    ctx.fillStyle = '#444';
+    fillRoundRect(bx - 62, by + 18, 24, 12, 2);
+    ctx.fillStyle = '#5588CC';
+    fillRoundRect(bx - 60, by + 8, 20, 16, 2);
+    // Laptop screen glow
+    ctx.fillStyle = '#88BBFF';
+    fillRoundRect(bx - 58, by + 10, 16, 10, 1);
+
+    // Coffee cup
+    ctx.fillStyle = '#FFFFFF';
+    fillRoundRect(bx + 40, by + 16, 12, 14, 3);
+    // Coffee
+    ctx.fillStyle = '#8B5E3C';
+    fillRoundRect(bx + 42, by + 18, 8, 6, 1);
+    // Cup handle
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(bx + 54, by + 23, 4, -0.5 * Math.PI, 0.5 * Math.PI); ctx.stroke();
+
+    // Boss speech bubble
+    const BOSS_PHRASES_IDLE = [
+        'Trabaje!',
+        'Muevase!',
+        'Mas rapido!',
+        'Lo invito a venir\na la oficina...',
+        'Esos clientes no\nse atienden solos!',
+        'Necesito resultados!',
+        'Esto es urgente!',
+        'Que paso con\nese cliente?',
+    ];
+    const BOSS_PHRASES_GOOD = [
+        'Bien hecho!',
+        'Asi se trabaja!',
+        'Excelente ritmo!',
+        'Siga asi!',
+    ];
+    const BOSS_PHRASES_DANGER = [
+        'SE NOS CAE!!',
+        'ATENCION!!!',
+        'Eso esta en rojo!',
+        'Ese proceso\nse muere!',
+    ];
+
+    // Pick phrase based on state, change every 4 seconds
+    const phraseIdx = Math.floor(now / 4000);
+    let phrase;
+    const anyDanger = game.procs.some(p => p.health < 25 && p.health > 0);
+    if (anyDanger) {
+        phrase = BOSS_PHRASES_DANGER[phraseIdx % BOSS_PHRASES_DANGER.length];
+    } else if (comboHigh) {
+        phrase = BOSS_PHRASES_GOOD[phraseIdx % BOSS_PHRASES_GOOD.length];
+    } else {
+        phrase = BOSS_PHRASES_IDLE[phraseIdx % BOSS_PHRASES_IDLE.length];
+    }
+
+    // Draw speech bubble to the left of the boss
+    const lines = phrase.split('\n');
+    const lineH = 13;
+    const bubbleW = Math.max(...lines.map(l => l.length * 7.5)) + 20;
+    const bubbleH = lines.length * lineH + 14;
+    const bubbleX = bx - bubbleW - 20;
+    const bubbleY = by - 50;
+
+    // Bubble background
+    ctx.fillStyle = '#FFFFFF';
+    fillRoundRect(bubbleX, bubbleY, bubbleW, bubbleH, 8);
+    ctx.strokeStyle = '#999'; ctx.lineWidth = 1;
+    strokeRoundRect(bubbleX, bubbleY, bubbleW, bubbleH, 8);
+
+    // Bubble tail (triangle pointing right to boss)
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.moveTo(bubbleX + bubbleW, bubbleY + bubbleH / 2 - 4);
+    ctx.lineTo(bubbleX + bubbleW + 10, bubbleY + bubbleH / 2 + 2);
+    ctx.lineTo(bubbleX + bubbleW, bubbleY + bubbleH / 2 + 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#999'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(bubbleX + bubbleW, bubbleY + bubbleH / 2 - 4);
+    ctx.lineTo(bubbleX + bubbleW + 10, bubbleY + bubbleH / 2 + 2);
+    ctx.lineTo(bubbleX + bubbleW, bubbleY + bubbleH / 2 + 6);
+    ctx.stroke();
+    // Cover the tail border inside
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(bubbleX + bubbleW - 1, bubbleY + bubbleH / 2 - 3, 2, 8);
+
+    // Text
+    ctx.font = anyDanger ? '900 11px "Nunito", Arial, sans-serif' : '700 11px "Nunito", Arial, sans-serif';
+    ctx.fillStyle = anyDanger ? '#FF4444' : (comboHigh ? '#4CAF50' : '#5D3A1A');
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let li = 0; li < lines.length; li++) {
+        ctx.fillText(lines[li], bubbleX + bubbleW / 2, bubbleY + 10 + li * lineH + lineH / 2);
+    }
+}
+
+function drawStations(now) {
+    // Update conveyor animation offset
+    conveyorOffset += 0.8;
+
+    for (let i = 0; i < 5; i++) {
+        const p = game.procs[i];
+        const pos = PROC_POS[i];
+        const x = pos.x, y = pos.y;
+        const hw = PROC_W / 2, hh = PROC_H / 2;
+
+        const att = game.attending === i;
+        const danger = p.health < 25 && !p.frozen;
+
+        // Station glow (yellow for selected)
+        if (att) {
+            ctx.shadowColor = '#FFD700';
+            ctx.shadowBlur = 20;
+            ctx.fillStyle = 'rgba(255,215,0,0.25)';
+            fillRoundRect(x - hw - 6, y - hh - 6, PROC_W + 12, PROC_H + 12, 12);
+            ctx.shadowBlur = 0;
+        } else if (danger) {
+            const pulseAlpha = 0.2 + Math.sin(now / 200) * 0.15;
+            ctx.strokeStyle = `rgba(255,68,68,${pulseAlpha + 0.4})`;
+            ctx.lineWidth = 3;
+            strokeRoundRect(x - hw - 4, y - hh - 4, PROC_W + 8, PROC_H + 8, 10);
+        } else if (p.frozen) {
+            ctx.fillStyle = 'rgba(41,182,246,0.2)';
+            fillRoundRect(x - hw - 4, y - hh - 4, PROC_W + 8, PROC_H + 8, 10);
+        }
+
+        // Soft shadow under station
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        fillRoundRect(x - hw + 4, y + hh - 6, PROC_W - 8, 10, 5);
+
+        // Station flash
+        if (game.stationFlashes[i] > 0) {
+            ctx.fillStyle = `rgba(255,255,255,${game.stationFlashes[i] * 0.5})`;
+            fillRoundRect(x - hw, y - hh, PROC_W, PROC_H, 8);
+        }
+
+        // === Station-specific themed visual (replaces conveyor belt) ===
+        const convY = y + 22;
+        // Station color-coded background tint
+        const STATION_TINTS = [
+            'rgba(76,175,80,0.08)',   // Onboarding: green
+            'rgba(33,150,243,0.08)',  // Seguimiento: blue
+            'rgba(229,57,53,0.08)',   // Entrega: red
+            'rgba(67,160,71,0.08)',   // Recaudo: green money
+            'rgba(255,215,0,0.08)',   // Off Ramp: gold
+        ];
+        ctx.fillStyle = STATION_TINTS[i];
+        fillRoundRect(x - hw, y - hh, PROC_W, PROC_H, 8);
+
+        if (i === 0) {
+            // === ONBOARDING: Welcome Desk ===
+            // Desk surface (warm brown)
+            ctx.fillStyle = '#8B5E3C';
+            fillRoundRect(x - 50, convY - 2, 100, 16, 4);
+            // Desk front panel
+            ctx.fillStyle = '#6D4C2A';
+            fillRoundRect(x - 50, convY + 10, 100, 8, 3);
+            // Desk legs
+            ctx.fillStyle = '#5D3A1A';
+            fillRoundRect(x - 46, convY + 18, 6, 14, 2);
+            fillRoundRect(x + 40, convY + 18, 6, 14, 2);
+            // Laptop on desk
+            ctx.fillStyle = '#333';
+            fillRoundRect(x - 20, convY - 12, 28, 16, 2);
+            // Laptop screen (blue glow)
+            ctx.fillStyle = '#2196F3';
+            fillRoundRect(x - 18, convY - 10, 24, 10, 1);
+            // Screen highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            fillRoundRect(x - 16, convY - 9, 8, 4, 1);
+            // Laptop base
+            ctx.fillStyle = '#444';
+            fillRoundRect(x - 22, convY + 4, 32, 3, 1);
+            // Coffee cup on desk (right side)
+            ctx.fillStyle = '#FFF';
+            fillRoundRect(x + 22, convY - 8, 10, 12, 3);
+            ctx.fillStyle = '#8B5E3C';
+            fillRoundRect(x + 24, convY - 6, 6, 5, 1);
+            // Cup handle
+            ctx.strokeStyle = '#FFF'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.arc(x + 33, convY - 2, 3, -0.5 * Math.PI, 0.5 * Math.PI); ctx.stroke();
+            // Steam from coffee
+            ctx.strokeStyle = 'rgba(200,200,200,0.5)'; ctx.lineWidth = 1;
+            for (let s = 0; s < 3; s++) {
+                const sx = x + 26 + s * 3;
+                const sOff = Math.sin(now / 300 + s) * 3;
+                ctx.beginPath();
+                ctx.moveTo(sx, convY - 10);
+                ctx.quadraticCurveTo(sx + sOff, convY - 16, sx, convY - 22);
+                ctx.stroke();
+            }
+            // BIENVENIDO sign above
+            ctx.fillStyle = '#4CAF50';
+            fillRoundRect(x - 40, y - hh + 8, 80, 18, 4);
+            ctx.strokeStyle = '#388E3C'; ctx.lineWidth = 1;
+            strokeRoundRect(x - 40, y - hh + 8, 80, 18, 4);
+            ctx.font = '900 9px "Nunito", Arial, sans-serif';
+            ctx.fillStyle = '#FFF';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('BIENVENIDO', x, y - hh + 17);
+            // Papers/sparkles when attending
+            if (att && p.queue.length > 0) {
+                for (let s = 0; s < 4; s++) {
+                    const angle = (now / 400 + s * 1.5) % (Math.PI * 2);
+                    const sx = x + Math.cos(angle) * 30;
+                    const sy2 = convY - 5 + Math.sin(angle * 1.7) * 12;
+                    ctx.fillStyle = s % 2 === 0 ? '#FFD700' : '#4CAF50';
+                    ctx.fillRect(sx - 2, sy2 - 2, 4, 5);
+                }
+            }
+        } else if (i === 1) {
+            // === SEGUIMIENTO MDC: Call Center Cubicle ===
+            // Cubicle back wall
+            ctx.fillStyle = '#607D8B';
+            fillRoundRect(x - 50, y - hh + 8, 100, 50, 3);
+            // Cubicle side wall (L-shaped)
+            ctx.fillStyle = '#546E7A';
+            fillRoundRect(x - 52, y - hh + 8, 6, 55, 2);
+            // Cubicle inner wall color
+            ctx.fillStyle = '#78909C';
+            fillRoundRect(x - 44, y - hh + 12, 88, 42, 2);
+            // Small chart on wall (uses health to angle a line)
+            ctx.fillStyle = '#FFF';
+            fillRoundRect(x + 12, y - hh + 16, 28, 20, 2);
+            ctx.strokeStyle = '#ddd'; ctx.lineWidth = 0.5;
+            strokeRoundRect(x + 12, y - hh + 16, 28, 20, 2);
+            // Chart line — angle based on health
+            const chartY1 = p.health > 50 ? y - hh + 20 : y - hh + 32;
+            const chartY2 = y - hh + 34 - (p.health / 100) * 16;
+            ctx.strokeStyle = p.health > 50 ? '#4CAF50' : '#F44336';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x + 15, chartY1);
+            ctx.lineTo(x + 26, chartY2);
+            ctx.lineTo(x + 37, chartY2 - 3);
+            ctx.stroke();
+            // Desk
+            ctx.fillStyle = '#8D6E63';
+            fillRoundRect(x - 44, convY - 2, 88, 14, 3);
+            // Desk front
+            ctx.fillStyle = '#6D4C41';
+            fillRoundRect(x - 44, convY + 8, 88, 6, 2);
+            // Desk legs
+            ctx.fillStyle = '#5D4037';
+            fillRoundRect(x - 40, convY + 14, 5, 12, 2);
+            fillRoundRect(x + 35, convY + 14, 5, 12, 2);
+            // Phone/headset on desk
+            ctx.fillStyle = '#222';
+            fillRoundRect(x - 20, convY - 10, 16, 10, 3);
+            // Phone earpiece
+            ctx.fillStyle = '#333';
+            ctx.beginPath(); ctx.arc(x - 12, convY - 12, 5, 0, Math.PI * 2); ctx.fill();
+            // Phone cord
+            ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x - 4, convY - 5);
+            ctx.quadraticCurveTo(x + 5, convY - 2, x + 10, convY - 8);
+            ctx.stroke();
+            // Sound waves when attending
+            if (att && p.queue.length > 0) {
+                const waveAlpha = (Math.sin(now / 150) + 1) * 0.4;
+                ctx.strokeStyle = `rgba(33,150,243,${waveAlpha})`; ctx.lineWidth = 1.5;
+                for (let w = 1; w <= 3; w++) {
+                    ctx.beginPath();
+                    ctx.arc(x - 12, convY - 12, 8 + w * 5, -0.4 * Math.PI, 0.4 * Math.PI);
+                    ctx.stroke();
+                }
+            }
+        } else if (i === 2) {
+            // === ENTREGA: Motorcycle Delivery ===
+            // Road/path (dark gray strip with white dashes)
+            ctx.fillStyle = '#424242';
+            fillRoundRect(x - 60, convY + 2, 120, 16, 3);
+            // Road markings (white dashes, animated)
+            ctx.fillStyle = '#FFF';
+            const dashOff = (now / 80) % 20;
+            for (let d = -60; d < 60; d += 20) {
+                ctx.fillRect(x + d + dashOff, convY + 9, 8, 2);
+            }
+            // Road edge lines
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(x - 58, convY + 3, 116, 2);
+            ctx.fillRect(x - 58, convY + 15, 116, 2);
+            // Motorcycle (bigger using scale)
+            ctx.save();
+            ctx.translate(x - 15, convY - 8);
+            ctx.scale(1.6, 1.6);
+            // Wheels
+            ctx.fillStyle = '#333';
+            ctx.beginPath(); ctx.arc(-10, 8, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(12, 8, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#888';
+            ctx.beginPath(); ctx.arc(-10, 8, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(12, 8, 2, 0, Math.PI * 2); ctx.fill();
+            // Frame
+            ctx.strokeStyle = '#E53935'; ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-10, 8); ctx.lineTo(-2, -2); ctx.lineTo(8, -2); ctx.lineTo(12, 8);
+            ctx.stroke();
+            // Seat
+            ctx.fillStyle = '#5D3A1A';
+            fillRoundRect(-4, -6, 12, 4, 2);
+            // Handlebar
+            ctx.strokeStyle = '#666'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(8, -2); ctx.lineTo(12, -8); ctx.stroke();
+            // Headlight
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath(); ctx.arc(14, -4, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+            // Speed lines behind motorcycle when attending
+            if (att && p.queue.length > 0) {
+                ctx.strokeStyle = 'rgba(229,57,53,0.5)'; ctx.lineWidth = 2;
+                for (let sl = 0; sl < 4; sl++) {
+                    const slY = convY - 10 + sl * 5;
+                    const slOff = (now / 60 + sl * 7) % 30;
+                    ctx.beginPath();
+                    ctx.moveTo(x - 50 - slOff, slY);
+                    ctx.lineTo(x - 35 - slOff, slY);
+                    ctx.stroke();
+                }
+            }
+            // Small house icon to the right
+            ctx.fillStyle = '#FF8A65';
+            fillRoundRect(x + 36, convY - 16, 20, 16, 2);
+            // House roof
+            ctx.fillStyle = '#D84315';
+            ctx.beginPath();
+            ctx.moveTo(x + 34, convY - 16);
+            ctx.lineTo(x + 46, convY - 28);
+            ctx.lineTo(x + 58, convY - 16);
+            ctx.closePath();
+            ctx.fill();
+            // House door
+            ctx.fillStyle = '#5D4037';
+            fillRoundRect(x + 42, convY - 8, 8, 8, 1);
+            // Key above house (golden)
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath(); ctx.arc(x + 46, convY - 34, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#DAA520';
+            ctx.beginPath(); ctx.arc(x + 46, convY - 34, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(x + 45, convY - 30, 2, 6);
+            ctx.fillRect(x + 47, convY - 26, 3, 2);
+        } else if (i === 3) {
+            // === RECAUDO: Cash Register ===
+            // Cash register body
+            ctx.fillStyle = '#37474F';
+            fillRoundRect(x - 30, convY - 20, 60, 30, 4);
+            // Register screen
+            ctx.fillStyle = '#4CAF50';
+            fillRoundRect(x - 24, convY - 16, 30, 12, 2);
+            // Screen text
+            ctx.font = '900 7px "Nunito", monospace';
+            ctx.fillStyle = '#C8E6C9';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('$$$', x - 9, convY - 10);
+            // Register buttons (grid)
+            const btnColors = ['#EF5350', '#42A5F5', '#66BB6A', '#FFA726'];
+            for (let r = 0; r < 2; r++) {
+                for (let c2 = 0; c2 < 3; c2++) {
+                    ctx.fillStyle = btnColors[(r * 3 + c2) % 4];
+                    fillRoundRect(x + 10 + c2 * 7, convY - 15 + r * 7, 5, 5, 1);
+                }
+            }
+            // Cash drawer
+            ctx.fillStyle = '#263238';
+            fillRoundRect(x - 28, convY + 10, 56, 8, 2);
+            ctx.fillStyle = '#455A64';
+            fillRoundRect(x - 10, convY + 11, 20, 3, 1);
+            // Stack of coins (right side)
+            const coinColors = ['#FFD700', '#FFC107', '#FFD700', '#DAA520'];
+            for (let c3 = 0; c3 < 4; c3++) {
+                ctx.fillStyle = coinColors[c3];
+                fillRoundRect(x + 35, convY - 2 - c3 * 5, 14, 6, 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                fillRoundRect(x + 36, convY - 1 - c3 * 5, 4, 3, 1);
+            }
+            // Calculator on left side
+            ctx.fillStyle = '#78909C';
+            fillRoundRect(x - 52, convY - 10, 18, 24, 2);
+            ctx.fillStyle = '#B0BEC5';
+            fillRoundRect(x - 50, convY - 8, 14, 8, 1);
+            // Calculator buttons
+            for (let r2 = 0; r2 < 3; r2++) {
+                for (let c4 = 0; c4 < 3; c4++) {
+                    ctx.fillStyle = '#546E7A';
+                    ctx.fillRect(x - 50 + c4 * 5, convY + 2 + r2 * 4, 4, 3);
+                }
+            }
+            // Floating bills when attending
+            if (att && p.queue.length > 0) {
+                for (let b = 0; b < 5; b++) {
+                    const bY = convY - 25 - ((now / 200 + b * 40) % 50);
+                    const bX = x - 20 + b * 12 + Math.sin(now / 300 + b) * 5;
+                    const bAlpha = 1 - ((now / 200 + b * 40) % 50) / 50;
+                    ctx.globalAlpha = bAlpha * 0.8;
+                    ctx.fillStyle = '#43A047';
+                    fillRoundRect(bX - 6, bY - 3, 12, 7, 1);
+                    ctx.fillStyle = '#FFF';
+                    ctx.font = '700 6px "Nunito", monospace';
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('$', bX, bY);
+                    ctx.globalAlpha = 1;
+                }
+            }
+        } else if (i === 4) {
+            // === OFF RAMP: Victory Arch ===
+            // Left pillar
+            ctx.fillStyle = '#FFD700';
+            fillRoundRect(x - 42, convY - 30, 12, 48, 3);
+            ctx.fillStyle = '#DAA520';
+            fillRoundRect(x - 40, convY - 28, 8, 44, 2);
+            // Right pillar
+            ctx.fillStyle = '#FFD700';
+            fillRoundRect(x + 30, convY - 30, 12, 48, 3);
+            ctx.fillStyle = '#DAA520';
+            fillRoundRect(x + 32, convY - 28, 8, 44, 2);
+            // Arc on top
+            ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(x, convY - 30, 36, Math.PI, 0);
+            ctx.stroke();
+            // Arc inner decoration
+            ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, convY - 30, 30, Math.PI, 0);
+            ctx.stroke();
+            // Checkered flag on top
+            const flagX = x - 8, flagY = convY - 68;
+            // Flag pole
+            ctx.fillStyle = '#666';
+            ctx.fillRect(x, convY - 70, 2, 30);
+            // Flag body
+            for (let fr = 0; fr < 3; fr++) {
+                for (let fc = 0; fc < 4; fc++) {
+                    ctx.fillStyle = (fr + fc) % 2 === 0 ? '#FFF' : '#333';
+                    ctx.fillRect(x + 2 + fc * 5, flagY + fr * 5, 5, 5);
+                }
+            }
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 0.5;
+            strokeRoundRect(x + 2, flagY, 20, 15, 1);
+            // Podium/stage
+            ctx.fillStyle = '#9C27B0';
+            fillRoundRect(x - 25, convY + 12, 50, 10, 3);
+            ctx.fillStyle = '#7B1FA2';
+            fillRoundRect(x - 22, convY + 14, 44, 6, 2);
+            // Star on podium
+            ctx.fillStyle = '#FFD700';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('\u2605', x, convY + 17);
+            // Confetti particles when attending
+            if (att && p.queue.length > 0) {
+                const confettiColors2 = ['#FF6B35', '#FFD700', '#4CAF50', '#2196F3', '#E91E63', '#9C27B0'];
+                for (let cf = 0; cf < 8; cf++) {
+                    const cAngle = (now / 500 + cf * 0.8) % (Math.PI * 2);
+                    const cR = 25 + Math.sin(now / 200 + cf) * 10;
+                    const cx2 = x + Math.cos(cAngle) * cR;
+                    const cy2 = convY - 10 + Math.sin(cAngle) * cR * 0.6;
+                    ctx.fillStyle = confettiColors2[cf % confettiColors2.length];
+                    ctx.globalAlpha = 0.7;
+                    ctx.fillRect(cx2 - 2, cy2 - 2, 4, 4);
+                    ctx.globalAlpha = 1;
+                }
+            }
+        }
+
+        // (Worker is drawn separately as a single moving character)
+
+        // ONE prominent vertical GREEN health bar on the right side
+        const barW = 14, barH = 110;
+        const barX = x + hw - 18;
+        const barTopY = y - hh + 6;
+
+        // Bar background
+        ctx.fillStyle = '#333';
+        fillRoundRect(barX, barTopY, barW, barH, 4);
+
+        if (p.health > 0) {
+            const fillH = barH * (p.health / 100);
+            ctx.fillStyle = hpColor(p.health);
+            fillRoundRect(barX, barTopY + barH - fillH, barW, fillH, 4);
+            // Shine highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            fillRoundRect(barX + 1, barTopY + barH - fillH, barW / 3, fillH, 2);
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
+        strokeRoundRect(barX, barTopY, barW, barH, 4);
+
+        // Auto-heal indicator (green dot above bar)
+        if (p.autoHealRate > 0) {
+            ctx.fillStyle = '#4CAF50';
+            ctx.beginPath(); ctx.arc(barX + barW / 2, barTopY - 8, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = '700 7px "Nunito", Arial, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('+', barX + barW / 2, barTopY - 8);
+        }
+
+        // Processing mini-bar
+        if (p.health > 25 && p.queue.length > 0 && !p.frozen) {
+            const pW = 80;
+            ctx.fillStyle = '#444';
+            fillRoundRect(x - pW / 2, convY + 24, pW, 4, 2);
+            ctx.fillStyle = '#FFD700';
+            fillRoundRect(x - pW / 2, convY + 24, pW * Math.min(1, p.processProgress), 4, 2);
+        }
+
+        // Client queue as mini person figures
+        if (p.queue.length > 0) {
+            const maxFigs = Math.min(p.queue.length, 8);
+            const figSpacing = 15;
+            const startFX = x - ((maxFigs - 1) * figSpacing) / 2;
+            for (let j = 0; j < maxFigs; j++) {
+                const c = p.queue[j];
+                ctx.globalAlpha = j === 0 ? 1 : 0.65;
+                drawMiniClient(startFX + j * figSpacing, convY + 2, CLIENT_TYPES[c.type].color, j === 0);
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        // Client count badge
+        if (p.queue.length > 0) {
+            const bcx = x + hw - 14, bcy = y - hh + 14;
+            ctx.fillStyle = p.queue.length >= 6 ? '#FF4444' : '#FF6B35';
+            ctx.beginPath(); ctx.arc(bcx, bcy, 13, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(bcx, bcy, 13, 0, Math.PI * 2); ctx.stroke();
+            ctx.font = '900 14px "Nunito", Arial, sans-serif';
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(String(p.queue.length), bcx, bcy);
+        }
+
+        // Status text
+        let statusText = '', statusColor = '';
+        if (p.frozen) { statusText = '\u2744\uFE0F CONGELADO ' + Math.ceil(p.frozenTimer) + 's'; statusColor = '#29b6f6'; }
+        else if (p.isFullAuto) { statusText = '\u{1F916} AUTO'; statusColor = '#9c27b0'; }
+        else if (p.health <= 0 && p.queue.length > 0) { statusText = '\u{1F480} MUERTO'; statusColor = '#FF4444'; }
+        else if (p.health < 25) { statusText = '\u26A0\uFE0F PELIGRO'; statusColor = '#FF4444'; }
+        else if (p.autoHealRate > 0 && game.attending !== i) { statusText = '\u{1F49A} auto-heal'; statusColor = '#4CAF50'; }
+
+        if (statusText) {
+            ctx.font = '900 10px "Nunito", Arial, sans-serif';
+            ctx.fillStyle = statusColor;
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.strokeText(statusText, x, y + 68);
+            ctx.fillText(statusText, x, y + 68);
+        }
+
+        // Station name plate (color-coded per station)
+        const NAME_BG = ['#2E7D32', '#1565C0', '#C62828', '#2E7D32', '#F9A825'];
+        const NAME_BORDER = ['#1B5E20', '#0D47A1', '#8E0000', '#1B5E20', '#F57F17'];
+        const nameW = 120, nameH = 24;
+        ctx.fillStyle = NAME_BG[i];
+        fillRoundRect(x - nameW / 2, y + hh - 2, nameW, nameH, 6);
+        ctx.strokeStyle = NAME_BORDER[i]; ctx.lineWidth = 1;
+        strokeRoundRect(x - nameW / 2, y + hh - 2, nameW, nameH, 6);
+        ctx.font = '900 14px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFF';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(PROC_DATA[i].emoji + ' ' + PROC_DATA[i].name, x, y + hh + 9);
+    }
+
+    // Arrival indicator
+    const arrAlpha = Math.sin(now / 400) * 0.3 + 0.7;
+    ctx.globalAlpha = arrAlpha;
+    ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFD700';
+    ctx.fillText('\u{1F464}\u2192', PROC_POS[0].x - PROC_W / 2 - 20, PROC_POS[0].y);
+    ctx.globalAlpha = 1;
+}
+
+// --- Single moving worker ---
+function drawMovingWorker(now) {
+    if (!game) return;
+
+    // Determine target position
+    const IDLE_POS = { x: 400, y: 130 }; // Near boss desk when idle
+    let targetX, targetY;
+
+    if (game.attending >= 0) {
+        if (game.attending === 2) {
+            // Entrega: sit on the motorcycle (offset right and up)
+            targetX = PROC_POS[2].x + 40;
+            targetY = PROC_POS[2].y + 4;
+        } else {
+            targetX = PROC_POS[game.attending].x;
+            targetY = PROC_POS[game.attending].y - 4;
+        }
+    } else if (game.investing >= 0) {
+        targetX = BOOST_X[game.investing];
+        targetY = BOOST_Y - 10;
+    } else {
+        targetX = IDLE_POS.x;
+        targetY = IDLE_POS.y;
+    }
+
+    game.workerTargetX = targetX;
+    game.workerTargetY = targetY;
+
+    // Smooth interpolation (lerp)
+    const speed = 0.12;
+    game.workerX += (game.workerTargetX - game.workerX) * speed;
+    game.workerY += (game.workerTargetY - game.workerY) * speed;
+
+    // Snap when close enough
+    if (Math.abs(game.workerX - game.workerTargetX) < 0.5) game.workerX = game.workerTargetX;
+    if (Math.abs(game.workerY - game.workerTargetY) < 0.5) game.workerY = game.workerTargetY;
+
+    // Determine arm animation
+    let armOffset = 0;
+    const isMoving = Math.abs(game.workerX - game.workerTargetX) > 2 || Math.abs(game.workerY - game.workerTargetY) > 2;
+
+    if (isMoving) {
+        // Walk animation - faster arm swing
+        armOffset = Math.sin(now / 100) * 8;
+    } else if (game.attending >= 0) {
+        const p = game.procs[game.attending];
+        if (p.queue.length > 0 && p.health > 25 && !p.frozen) {
+            armOffset = Math.sin(now / 150) * 6; // Working
+        }
+    } else if (game.investing >= 0) {
+        armOffset = Math.sin(now / 200) * 5; // Investing
+    }
+
+    // Draw the single worker (use first worker's appearance - the "CS operator")
+    drawWorker(game.workerX, game.workerY, '#2196F3', '#FFD5A0', '#333333', armOffset, 0, 1.8);
+}
+
+function drawBoosts(now) {
+    // Label
+    ctx.font = '900 14px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#5D3A1A'; ctx.lineWidth = 3;
+    ctx.strokeText('PROYECTOS', W / 2, BOOST_Y - 48);
+    ctx.fillText('PROYECTOS', W / 2, BOOST_Y - 48);
+
+    for (let j = 0; j < 3; j++) {
+        const bs = game.boostState[j];
+        const data = ROUND_BOOSTS[j];
+        const x = BOOST_X[j];
+        const inv = game.investing === j;
+        const done = bs.done;
+
+        let bg, brd, bw;
+        if (done) { bg = '#4CAF50'; brd = '#388E3C'; bw = 3; }
+        else if (inv) { bg = '#FFD700'; brd = '#DAA520'; bw = 3; }
+        else { bg = '#FFF8E7'; brd = '#DAA520'; bw = 2; }
+
+        const pw = BOOST_W / 2, ph = BOOST_H / 2;
+
+        // Card shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        fillRoundRect(x - pw + 2, BOOST_Y - ph + 3, BOOST_W, BOOST_H, 12);
+
+        ctx.fillStyle = bg;
+        fillRoundRect(x - pw, BOOST_Y - ph, BOOST_W, BOOST_H, 12);
+        ctx.strokeStyle = brd; ctx.lineWidth = bw;
+        strokeRoundRect(x - pw, BOOST_Y - ph, BOOST_W, BOOST_H, 12);
+
+        // Emoji
+        ctx.font = '24px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#000';
+        ctx.fillText(data.emoji, x, BOOST_Y - 18);
+        // Name
+        ctx.font = '900 13px "Nunito", Arial, sans-serif'; ctx.fillStyle = done ? '#fff' : '#5D3A1A';
+        ctx.fillText(data.name, x, BOOST_Y + 4);
+        // Time
+        ctx.font = '700 10px "Nunito", Arial, sans-serif'; ctx.fillStyle = done ? '#ddd' : '#888';
+        ctx.fillText(data.investTime + 's', x, BOOST_Y + 20);
+
+        // Progress bar
+        if (!done) {
+            const barY = BOOST_Y + ph - 12, barW2 = BOOST_W - 16, barH2 = 6;
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            fillRoundRect(x - barW2 / 2, barY, barW2, barH2, 3);
+            const ratio = bs.progress / data.investTime;
+            if (ratio > 0) {
+                ctx.fillStyle = inv ? '#FFD700' : '#aaa';
+                fillRoundRect(x - barW2 / 2, barY, barW2 * ratio, barH2, 3);
+            }
+        } else {
+            ctx.font = '24px sans-serif';
+            ctx.fillText('\u2705', x, BOOST_Y);
+        }
+    }
+}
+
+function drawHUD(now) {
+    // Dark top bar
+    ctx.fillStyle = '#2a1a0e';
+    ctx.fillRect(0, 0, W, 60);
+    // Subtle bottom edge
+    ctx.fillStyle = '#5D3A1A';
+    ctx.fillRect(0, 58, W, 2);
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+    // === LEFT: Coin icon + count ===
+    drawCoinIcon(35, 30, 14);
+    ctx.font = '900 18px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    ctx.textAlign = 'left';
+    ctx.fillText(String(gs.coins), 55, 30);
+
+    // === CENTER-TOP: Timer ===
+    const secs = Math.ceil(game.timeLeft);
+    const timerX = W / 2;
+    if (secs <= 15) {
+        // Red/pink pill background when low
+        const pulse = Math.sin(now / 200) * 0.3 + 0.7;
+        ctx.fillStyle = `rgba(255,68,68,${pulse * 0.8})`;
+        fillRoundRect(timerX - 50, 8, 100, 44, 14);
+    } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        fillRoundRect(timerX - 50, 8, 100, 44, 14);
+    }
+    ctx.font = '900 24px "Nunito", monospace'; ctx.textAlign = 'center';
+    if (secs <= 15) {
+        const pulse = Math.sin(now / 200) * 0.5 + 0.5;
+        const r = Math.round(200 + 55 * pulse);
+        ctx.fillStyle = `rgb(${r},${Math.round(20 + 40 * pulse)},${Math.round(20 + 40 * pulse)})`;
+    } else {
+        ctx.fillStyle = '#FFFFFF';
+    }
+    ctx.fillText(fmtTime(secs), timerX, 32);
+
+    // === Score (left of center) ===
+    ctx.font = '700 9px "Nunito", Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.textAlign = 'center';
+    ctx.fillText('EXITOSOS', 175, 14);
+    ctx.font = '900 20px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#4CAF50';
+    ctx.fillText(String(game.roundScore), 175, 38);
+
+    // === Combo (right of center) ===
+    ctx.font = '700 9px "Nunito", Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillText('COMBO', 460, 14);
+
+    const tier = getComboTier(game.combo);
+    let comboStr, comboColor, comboSize;
+    if (tier.mult >= 3) {
+        const pulse = Math.sin(now / 250) * 0.08 + 1;
+        comboStr = '\u{1F525}\u{1F525}' + tier.label; comboColor = '#ff5722'; comboSize = 22 * pulse;
+    } else if (tier.mult >= 2) {
+        const pulse = Math.sin(now / 400) * 0.04 + 1;
+        comboStr = '\u{1F525}' + tier.label; comboColor = '#ff9800'; comboSize = 20 * pulse;
+    } else if (tier.mult >= 1.5) {
+        comboStr = tier.label; comboColor = '#ffc107'; comboSize = 19;
+    } else {
+        comboStr = tier.label; comboColor = '#FFFFFF'; comboSize = 18;
+    }
+    ctx.font = `900 ${Math.round(comboSize)}px "Nunito", Arial, sans-serif`;
+    ctx.fillStyle = comboColor;
+    ctx.fillText(comboStr, 460, 38);
+
+    // Combo meter bar
+    const meterX = 418, meterY = 52, meterW = 84, meterH = 5;
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    fillRoundRect(meterX, meterY, meterW, meterH, 2);
+    let meterFill = 0, meterColor = '#555';
+    if (tier.mult >= 3) { meterFill = 1; meterColor = '#FF4444'; }
+    else if (tier.mult >= 2) { meterFill = 0.75; meterColor = '#FFA500'; }
+    else if (tier.mult >= 1.5) { meterFill = 0.5; meterColor = '#FFD700'; }
+    else { meterFill = Math.min(1, game.combo / 3) * 0.25; meterColor = '#555'; }
+    if (meterFill > 0) {
+        ctx.fillStyle = meterColor;
+        fillRoundRect(meterX, meterY, meterW * meterFill, meterH, 2);
+    }
+
+    // === RIGHT: Day counter ===
+    ctx.font = '900 16px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    ctx.textAlign = 'center';
+    ctx.fillText('DIA ' + game.round + '/' + TOTAL_ROUNDS, 575, 24);
+
+    // Lost count
+    ctx.font = '700 8px "Nunito", Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillText('PERDIDOS', 575, 42);
+    ctx.font = '900 14px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FF4444';
+    ctx.fillText(String(game.roundLost), 575, 54);
+
+    // Status text below HUD
+    let statusMsg, statusColor;
+    if (game.attending >= 0) {
+        statusMsg = '\u{1F527} Atendiendo: ' + PROC_DATA[game.attending].name;
+        statusColor = '#4CAF50';
+    } else if (game.investing >= 0) {
+        statusMsg = '\u{1F477} Invirtiendo en: ' + ROUND_BOOSTS[game.investing].name + '...';
+        statusColor = '#FFD700';
+    } else {
+        statusMsg = 'Click una estacion para atenderla';
+        statusColor = '#8B5E3C';
+    }
+    ctx.font = '700 italic 11px "Nunito", Arial, sans-serif'; ctx.fillStyle = statusColor;
+    ctx.textAlign = 'center';
+    ctx.fillText(statusMsg, W / 2, 73);
+
+    // Heal debuff
+    if (game.healDebuffTimer > 0) {
+        ctx.font = '900 12px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FF4444';
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+        const dbTxt = '\u26A0\uFE0F Heal reducido \u2014 ' + Math.ceil(game.healDebuffTimer) + 's';
+        ctx.strokeText(dbTxt, W / 2, H - 15);
+        ctx.fillText(dbTxt, W / 2, H - 15);
+    }
+}
+
+// --- Main update for Game ---
+function updateGame(dt, now) {
+    if (!game) return;
+
+    // Boss face red timer
+    if (game.bossFaceRedTimer > 0) game.bossFaceRedTimer -= dt;
+
+    // Vignette fade
+    if (vignetteAlpha > 0) vignetteAlpha = Math.max(0, vignetteAlpha - dt * 2.5);
+
+    // Station flash decay
+    for (let i = 0; i < 5; i++) {
+        if (game.stationFlashes[i] > 0) game.stationFlashes[i] = Math.max(0, game.stationFlashes[i] - dt * 2);
+    }
+
+    if (!game.roundStarted) {
+        drawGameScene(now);
+        return;
+    }
+
+    // Event pause
+    if (game.eventPaused) {
+        game.evtTimeout -= dt;
+        if (game.evtTimeout <= 0) {
+            if (currentEvt) currentEvt.autoApply();
+            dismissEvent();
+        }
+        // Processes still decay during events
+        for (let i = 0; i < 5; i++) {
+            const p = game.procs[i];
             if (p.autoHealRate > 0) p.health = Math.min(100, p.health + p.autoHealRate * dt);
             const pressure = (1 + p.queue.length * 0.12);
-            p.health = Math.max(0, p.health - data.decay * p.decayMult * this.boostDecayMult * pressure * dScale * dt);
+            p.health = Math.max(0, p.health - PROC_DATA[i].decay * p.decayMult * pressure * getDecayScale() * dt);
         }
+        drawGameScene(now);
+        return;
+    }
 
-        // Frozen
-        if (p.frozen) {
-            p.frozenTimer -= dt;
-            if (p.frozenTimer <= 0) { p.frozen = false; p.frozenTimer = 0; }
-            return;
-        }
+    // Timer
+    game.timeLeft -= dt;
+    if (game.timeLeft <= 0) { game.timeLeft = 0; endRound(); return; }
 
-        // Processing
-        let hf;
-        if (p.health > 50) hf = 1;
-        else if (p.health > 25) hf = 0.5 + (p.health - 25) / 50;
-        else hf = 0;
+    // Heal debuff
+    if (game.healDebuffTimer > 0) {
+        game.healDebuffTimer -= dt;
+        if (game.healDebuffTimer <= 0) { game.healMult = 1; }
+    }
 
-        const autoBoost = (p.isFullAuto && this.attending !== i) ? 0.6 : 0;
-        const attendBoost = (this.attending === i) ? 1.3 : 0;
-        const speed = Math.max(attendBoost, autoBoost);
-
-        if (hf > 0 && p.queue.length > 0 && speed > 0) {
-            const et = data.processTime * p.speedMult * this.boostSpeedMult * CLIENT_TYPES[p.queue[0].type].timeMult;
-            p.processProgress += (dt * speed * hf) / et;
-
-            while (p.processProgress >= 1 && p.queue.length > 0) {
-                p.processProgress -= 1;
-                const client = p.queue.shift();
-                if (i < 4) {
-                    if (this.procs[i + 1].queue.length < CLIENT_MAX) {
-                        this.procs[i + 1].queue.push({ type: client.type, age: 0 });
-                        this.transferAnim(i, i + 1, client.type);
-                    } else {
-                        this.clientLost(i + 1);
-                    }
-                } else {
-                    this.clientSuccess(client.type);
-                }
-            }
-        }
-
-        // Client aging
-        for (let j = p.queue.length - 1; j >= 0; j--) {
-            p.queue[j].age += dt * CLIENT_TYPES[p.queue[j].type].ageMult;
-            if (p.queue[j].age >= CLIENT_EXPIRY) {
-                p.queue.splice(j, 1);
-                this.clientLost(i);
-            }
-        }
-
-        // Client loss when process dead
-        if (p.health <= 0 && p.queue.length > 0) {
-            p.lossTimer += dt;
-            if (p.lossTimer >= LOSS_INTERVAL) {
-                p.queue.shift();
-                p.lossTimer = 0;
-                this.clientLost(i);
-            }
+    // Arrivals
+    game.arrivalAccum += dt;
+    if (game.arrivalAccum >= getArrivalInterval()) {
+        const type = getClientType();
+        if (game.procs[0].queue.length < CLIENT_MAX) {
+            game.procs[0].queue.push({ type, age: 0 });
+            game.roundArrived++;
+            gs.totalArrived++;
+            bounceQueueDot(0);
         } else {
-            p.lossTimer = 0;
+            clientLost(0);
+        }
+        game.arrivalAccum = 0;
+    }
+
+    // Process updates
+    for (let i = 0; i < 5; i++) updateProcess(i, dt);
+
+    // Boost investment
+    if (game.investing >= 0 && !game.boostState[game.investing].done) {
+        game.boostState[game.investing].progress += dt;
+        if (game.boostState[game.investing].progress >= ROUND_BOOSTS[game.investing].investTime) {
+            completeBoost(game.investing);
         }
     }
 
-    clientSuccess(type) {
-        const tier = getComboTier(this.combo);
-        const coins = Math.round(CLIENT_TYPES[type].value * tier.mult);
-        this.gs.coins += coins;
-        this.roundCoins += coins;
-        this.roundScore++;
-        this.combo++;
-        this.maxCombo = Math.max(this.maxCombo, this.combo);
-        this.exitAnim(type);
-        this.floatText(PROC_POS[4].x, PROC_POS[4].y - 80, '\u26A1 +' + coins + '\u{1FA99}', '#228B22');
-
-        this.successParticleBurst(type);
-
-        const newTier = getComboTier(this.combo);
-        if (newTier.mult > tier.mult) {
-            this.cameras.main.flash(150, 255, 200, 50, false);
-            this.tweens.add({
-                targets: this.comboTxt, scaleX: 1.6, scaleY: 1.6, duration: 150,
-                yoyo: true, ease: 'Back.easeOut'
-            });
-        }
+    // Events
+    game.eventAccum += dt;
+    const evtInt = getEventInterval();
+    if (game.eventAccum >= evtInt && game.timeLeft > 15) {
+        triggerEvent();
+        game.eventAccum = 0;
     }
 
-    successParticleBurst(type) {
-        const pos = PROC_POS[4];
-        const exitX = pos.x + PROC_W / 2 + 10;
-        const exitY = pos.y;
-        const confettiColors = [0xFF6B35, 0xFFD700, 0x32CD32, 0x1F77B4, 0xFF4444, 0x00CED1];
-        const count = Phaser.Math.Between(10, 16);
-        for (let i = 0; i < count; i++) {
-            const angle = (Math.PI * 2 * i) / count + Phaser.Math.FloatBetween(-0.3, 0.3);
-            const dist = Phaser.Math.Between(30, 70);
-            const size = Phaser.Math.Between(4, 8);
-            const color = confettiColors[Phaser.Math.Between(0, confettiColors.length - 1)];
-            const particle = this.add.rectangle(exitX, exitY, size, size, color, 1).setDepth(50);
-            particle.setAngle(Phaser.Math.Between(0, 360));
-            this.tweens.add({
-                targets: particle,
-                x: exitX + Math.cos(angle) * dist,
-                y: exitY + Math.sin(angle) * dist + 20,
-                alpha: 0, scaleX: 0.2, scaleY: 0.2,
-                angle: particle.angle + Phaser.Math.Between(-180, 180),
-                duration: 600, ease: 'Power2',
-                onComplete: () => particle.destroy()
-            });
-        }
-    }
-
-    clientLost(procIdx) {
-        this.roundLost++;
-        this.gs.totalLost++;
-        if (this.combo > 0) {
-            this.combo = 0;
-            this.cameras.main.flash(150, 200, 50, 50, false);
-        }
-        this.floatText(PROC_POS[procIdx].x, PROC_POS[procIdx].y - 80, '\u{1F480} -1', '#CC0000');
-
-        // Boss face turns red briefly
-        this.bossFaceRedTimer = 0.5;
-
-        // Orange sparks on loss
-        const pos = PROC_POS[procIdx];
-        for (let i = 0; i < 6; i++) {
-            const spark = this.add.rectangle(
-                pos.x + Phaser.Math.Between(-20, 20),
-                pos.y + Phaser.Math.Between(-20, 20),
-                3, 3, 0xFF6B35, 1
-            ).setDepth(50);
-            this.tweens.add({
-                targets: spark,
-                x: spark.x + Phaser.Math.Between(-30, 30),
-                y: spark.y + Phaser.Math.Between(-40, -10),
-                alpha: 0, duration: 400, ease: 'Power2',
-                onComplete: () => spark.destroy()
-            });
-        }
-
-        // Red vignette flash
-        this.vignetteGfx.setAlpha(0.6);
-        this.tweens.add({
-            targets: this.vignetteGfx, alpha: 0, duration: 400, ease: 'Power2'
-        });
-        this.cameras.main.shake(200, 0.004);
-    }
-
-    // ---- Events (Factory Alarm) ----
-    triggerEvent() {
-        let avail = EVENTS.map((_, i) => i).filter(i => !this.usedEvents.includes(i));
-        if (!avail.length) { this.usedEvents = []; avail = EVENTS.map((_, i) => i); }
-        const idx = Phaser.Utils.Array.GetRandom(avail);
-        this.usedEvents.push(idx);
-        this.eventCount++;
-        const evt = EVENTS[idx];
-
-        this.eventPaused = true;
-        this.evtTimeout = 8;
-
-        this.evtOvl.setVisible(true).setAlpha(0);
-        this.tweens.add({ targets: this.evtOvl, alpha: 0.7, duration: 200 });
-
-        // Red glow behind
-        this.evtGlowGfx.clear();
-        this.evtGlowGfx.fillStyle(0xff0000, 0.15);
-        this.evtGlowGfx.fillRoundedRect(W / 2 - 230, H / 2 - 130, 460, 260, 24);
-        this.evtGlowGfx.fillStyle(0xff0000, 0.08);
-        this.evtGlowGfx.fillRoundedRect(W / 2 - 245, H / 2 - 145, 490, 290, 30);
-        this.evtGlowGfx.setAlpha(0);
-        this.tweens.add({ targets: this.evtGlowGfx, alpha: 1, duration: 300 });
-
-        // Yellow warning card
-        this.evtGfx.clear();
-        this.evtGfx.fillStyle(0xFFD700, 1); this.evtGfx.fillRoundedRect(W / 2 - 210, H / 2 - 110, 420, 220, 16);
-        this.evtBorderGfx.clear();
-        this.evtBorderGfx.lineStyle(4, 0xFF0000, 1); this.evtBorderGfx.strokeRoundedRect(W / 2 - 210, H / 2 - 110, 420, 220, 16);
-        this.evtBorderGfx.setAlpha(1);
-        this.tweens.add({
-            targets: this.evtBorderGfx, alpha: 0.4, duration: 400,
-            yoyo: true, repeat: -1
-        });
-
-        this.evtTitle.setText('\u{1F6A8} ' + evt.title).setPosition(W / 2, H / 2 - 180).setVisible(true).setAlpha(0);
-        this.evtTitle.setColor('#1a1a1a');
-        this.evtBody.setText(evt.text).setPosition(W / 2, H / 2 - 140).setVisible(true).setAlpha(0);
-        this.evtBody.setColor('#333333');
-
-        this.tweens.add({
-            targets: this.evtTitle,
-            y: H / 2 - 70, alpha: 1, duration: 300, ease: 'Back.easeOut'
-        });
-        this.tweens.add({
-            targets: this.evtBody,
-            y: H / 2 - 30, alpha: 1, duration: 300, ease: 'Back.easeOut', delay: 50
-        });
-
-        const canAffordB = evt.optB.cost === undefined || evt.optB.cost === 0 || this.gs.coins >= evt.optB.cost;
-
-        this.evtBtnA = this.makeEvtBtn(W / 2 - 100, H / 2 + 40, evt.optA.label, evt.optA.desc, true, 'green', () => {
-            evt.optA.apply(this);
-            this.dismissEvent();
-        });
-
-        const bDesc = evt.optB.cost ? evt.optB.desc + ' (\u{1F4B0}' + evt.optB.cost + ')' : evt.optB.desc;
-        this.evtBtnB = this.makeEvtBtn(W / 2 + 100, H / 2 + 40, evt.optB.label, bDesc, canAffordB, 'orange', () => {
-            if (!canAffordB) return;
-            if (evt.optB.cost) this.gs.coins -= evt.optB.cost;
-            evt.optB.apply(this);
-            this.dismissEvent();
-        });
-
-        this.cameras.main.shake(200, 0.005);
-    }
-
-    makeEvtBtn(x, y, label, desc, enabled, style, fn) {
-        const els = [];
-        const g = this.add.graphics().setDepth(93);
-        let bgColor, brdColor;
-        if (!enabled) {
-            bgColor = 0x999999; brdColor = 0x666666;
-        } else if (style === 'green') {
-            bgColor = 0x32CD32; brdColor = 0x228B22;
-        } else {
-            bgColor = 0xFFA500; brdColor = 0xCC8400;
-        }
-        g.fillStyle(bgColor, 1); g.fillRoundedRect(x - 90, y - 30, 180, 60, 8);
-        g.lineStyle(2, brdColor, 1); g.strokeRoundedRect(x - 90, y - 30, 180, 60, 8);
-        els.push(g);
-        const t1 = this.add.text(x, y - 10, label, {
-            fontSize: '14px', fontFamily: 'Arial Black, Arial, sans-serif',
-            color: enabled ? '#1a1a1a' : '#555555', fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(94);
-        els.push(t1);
-        const t2 = this.add.text(x, y + 12, desc, {
-            fontSize: '9px', fontFamily: 'Arial, sans-serif',
-            color: enabled ? '#333333' : '#666666', align: 'center'
-        }).setOrigin(0.5).setDepth(94);
-        els.push(t2);
-        if (enabled) {
-            const zone = this.add.zone(x, y, 180, 60).setInteractive({ useHandCursor: true }).setDepth(95);
-            zone.on('pointerdown', fn);
-            els.push(zone);
-            const hoverGfx = this.add.graphics().setDepth(93).setAlpha(0);
-            hoverGfx.fillStyle(0xFFFFFF, 0.25); hoverGfx.fillRoundedRect(x - 90, y - 30, 180, 60, 8);
-            els.push(hoverGfx);
-            zone.on('pointerover', () => { hoverGfx.setAlpha(1); t1.setScale(1.05); t2.setScale(1.05); });
-            zone.on('pointerout', () => { hoverGfx.setAlpha(0); t1.setScale(1); t2.setScale(1); });
-        }
-        return els;
-    }
-
-    dismissEvent() {
-        this.evtOvl.setVisible(false);
-        this.evtGfx.clear();
-        this.evtGlowGfx.clear();
-        this.evtGlowGfx.setAlpha(0);
-        this.evtBorderGfx.clear();
-        this.tweens.killTweensOf(this.evtBorderGfx);
-        this.evtTitle.setVisible(false);
-        this.evtBody.setVisible(false);
-        if (this.evtBtnA) { this.evtBtnA.forEach(e => e.destroy()); this.evtBtnA = null; }
-        if (this.evtBtnB) { this.evtBtnB.forEach(e => e.destroy()); this.evtBtnB = null; }
-        this.eventPaused = false;
-    }
-
-    // ---- Visuals ----
-    floatText(x, y, text, color) {
-        const t = this.add.text(x, y, text, {
-            fontSize: '15px', fontFamily: 'Arial Black, Arial, sans-serif',
-            color, stroke: '#000000', strokeThickness: 3
-        }).setOrigin(0.5).setDepth(50);
-        this.tweens.add({ targets: t, y: y - 35, alpha: 0, duration: 500, ease: 'Power2', onComplete: () => t.destroy() });
-    }
-
-    flashStation(idx) {
-        const pos = PROC_POS[idx];
-        const fl = this.add.rectangle(pos.x, pos.y, PROC_W, PROC_H, 0xffffff, 0.25).setDepth(80);
-        this.tweens.add({ targets: fl, alpha: 0, duration: 500, onComplete: () => fl.destroy() });
-    }
-
-    transferAnim(from, to, type) {
-        const fromPos = PROC_POS[from];
-        const toPos = PROC_POS[to];
-        const sq = this.add.rectangle(fromPos.x, fromPos.y + 22, 8, 8, CLIENT_TYPES[type].color).setDepth(50);
-        this.tweens.add({
-            targets: sq, x: toPos.x, y: toPos.y + 22, duration: 350, ease: 'Power2',
-            onComplete: () => sq.destroy()
-        });
-    }
-
-    exitAnim(type) {
-        const pos = PROC_POS[4];
-        const startX = pos.x + PROC_W / 2;
-        const startY = pos.y;
-        const sq = this.add.rectangle(startX, startY, 8, 8, CLIENT_TYPES[type].color).setDepth(50);
-        this.tweens.add({
-            targets: sq, x: W + 30, y: startY - 80, alpha: 0,
-            duration: 450, ease: 'Power2',
-            onComplete: () => sq.destroy()
-        });
-    }
-
-    drawStations() {
-        const time = this.time.now;
-
-        for (let i = 0; i < 5; i++) {
-            const g = this.stGfx[i];
-            const p = this.procs[i];
-            const pos = PROC_POS[i];
-            const x = pos.x;
-            const y = pos.y;
-            const hw = PROC_W / 2, hh = PROC_H / 2;
-            g.clear();
-
-            const att = this.attending === i;
-            const danger = p.health < 25 && !p.frozen;
-
-            // --- Station glow (selected = green highlight) ---
-            const glowG = this.stGlow[i];
-            glowG.clear();
-            if (att) {
-                glowG.fillStyle(0x00FF7F, 0.2);
-                glowG.fillRoundedRect(x - hw - 6, y - hh - 6, PROC_W + 12, PROC_H + 12, 10);
-            } else if (danger) {
-                const pulseAlpha = 0.1 + Math.sin(time / 200) * 0.1;
-                glowG.lineStyle(3, 0xFF0000, pulseAlpha + 0.3);
-                glowG.strokeRoundedRect(x - hw - 4, y - hh - 4, PROC_W + 8, PROC_H + 8, 10);
-            } else if (p.frozen) {
-                glowG.fillStyle(0x29b6f6, 0.15);
-                glowG.fillRoundedRect(x - hw - 4, y - hh - 4, PROC_W + 8, PROC_H + 8, 10);
-            }
-
-            // --- Workstation base (desk/conveyor) ---
-            const deskY = y + 28;
-            g.fillStyle(0xB8D4E3, 1);
-            g.fillRect(x - 60, deskY, 120, 16);
-            g.fillStyle(0x666666, 1);
-            g.fillRect(x - 60, deskY + 16, 120, 3);
-
-            // --- Worker character ---
-            const isProcessing = p.queue.length > 0 && p.health > 25 && !p.frozen;
-            let armOffset = 0;
-            let shakeX = 0;
-
-            if (att && isProcessing) {
-                // Fast arm animation when attended
-                armOffset = Math.sin(time / 150) * 6;
-            } else if (isProcessing) {
-                // Slow arm animation
-                armOffset = Math.sin(time / 300) * 4;
-            } else if (this.investing >= 0) {
-                // All workers stop when investing
-                armOffset = 0;
-            }
-
-            // Shake when low health
-            if (p.health < 25 && p.health > 0 && !p.frozen) {
-                shakeX = Math.sin(time / 50) * 2;
-            }
-
-            // Frozen blue tint - draw worker slightly differently
-            if (p.frozen) {
-                // Blue-tinted worker
-                drawWorker(g, x, y - 4, 0x6699CC, 0xAABBDD, 0x556688, 0, 0);
-            } else {
-                drawWorker(g, x, y - 4, WORKER_SHIRTS[i], WORKER_SKINS[i], WORKER_HAIR[i], armOffset, shakeX);
-            }
-
-            // --- Vertical health bars (Make More style!) ---
-            const barW = 10, barH = 100;
-            const barX1 = x - hw + 2;
-            const barX2 = x + hw - 12;
-            const barTopY = y - hh + 10;
-
-            // Left bar
-            g.fillStyle(0x333333, 1);
-            g.fillRect(barX1, barTopY, barW, barH);
-            if (p.health > 0) {
-                const fillH = barH * (p.health / 100);
-                g.fillStyle(hpColor(p.health), 1);
-                g.fillRect(barX1, barTopY + barH - fillH, barW, fillH);
-                // Highlight
-                g.fillStyle(0xFFFFFF, 0.2);
-                g.fillRect(barX1, barTopY + barH - fillH, barW / 3, fillH);
-            }
-            g.lineStyle(1, 0x555555, 0.5);
-            g.strokeRect(barX1, barTopY, barW, barH);
-
-            // Right bar
-            g.fillStyle(0x333333, 1);
-            g.fillRect(barX2, barTopY, barW, barH);
-            if (p.health > 0) {
-                const fillH = barH * (p.health / 100);
-                g.fillStyle(hpColor(p.health), 1);
-                g.fillRect(barX2, barTopY + barH - fillH, barW, fillH);
-                g.fillStyle(0xFFFFFF, 0.2);
-                g.fillRect(barX2, barTopY + barH - fillH, barW / 3, fillH);
-            }
-            g.lineStyle(1, 0x555555, 0.5);
-            g.strokeRect(barX2, barTopY, barW, barH);
-
-            // Auto-heal indicator on right bar
-            if (p.autoHealRate > 0) {
-                g.fillStyle(0x00FF7F, 0.8); g.fillCircle(barX2 + barW / 2, barTopY - 6, 4);
-            }
-
-            // --- Processing mini-bar ---
-            if (p.health > 25 && p.queue.length > 0 && !p.frozen) {
-                const pW = 80;
-                g.fillStyle(0x333333, 1); g.fillRect(x - pW / 2, deskY + 22, pW, 3);
-                g.fillStyle(0xFF6B35, 1); g.fillRect(x - pW / 2, deskY + 22, pW * Math.min(1, p.processProgress), 3);
-            }
-
-            // --- Client queue as small colored squares on desk ---
-            if (p.queue.length > 0) {
-                const maxDots = Math.min(p.queue.length, 8);
-                const dotSpacing = 14;
-                const startX = x - ((maxDots - 1) * dotSpacing) / 2;
-                for (let j = 0; j < maxDots; j++) {
-                    const c = p.queue[j];
-                    g.fillStyle(CLIENT_TYPES[c.type].color, j === 0 ? 1 : 0.7);
-                    const sqSize = j === 0 ? 10 : 8;
-                    g.fillRect(startX + j * dotSpacing - sqSize / 2, deskY + 3 - sqSize / 2, sqSize, sqSize);
-                }
-            }
-
-            // --- Process name below workstation ---
-            // Drawn as static text in create, but we need to draw it fresh
-            // Use the graphics object to add text-like label below
-            // (We'll use a dedicated text object approach below)
-
-            // --- Client count badge at top-right ---
-            if (p.queue.length > 0) {
-                const cx = x + hw - 14, cy = y - hh + 14;
-                g.fillStyle(p.queue.length >= 6 ? 0xFF0000 : 0xFF6B35, 1);
-                g.fillCircle(cx, cy, 12);
-                this.stCount[i].setText(String(p.queue.length)).setPosition(cx, cy).setVisible(true);
-            } else {
-                this.stCount[i].setVisible(false);
-            }
-
-            // Status text
-            if (p.frozen) this.stStatus[i].setText('\u2744\uFE0F CONGELADO ' + Math.ceil(p.frozenTimer) + 's').setColor('#29b6f6').setVisible(true);
-            else if (p.isFullAuto) this.stStatus[i].setText('\u{1F916} AUTO').setColor('#9c27b0').setVisible(true);
-            else if (p.health <= 0 && p.queue.length > 0) this.stStatus[i].setText('\u{1F480} MUERTO').setColor('#FF0000').setVisible(true);
-            else if (p.health < 25) this.stStatus[i].setText('\u26A0\uFE0F PELIGRO').setColor('#FF4444').setVisible(true);
-            else if (p.autoHealRate > 0 && this.attending !== i) this.stStatus[i].setText('\u{1F49A} auto-heal').setColor('#00FF7F').setVisible(true);
-            else this.stStatus[i].setVisible(false);
-        }
-
-        // Draw station names (only once, but since we redraw every frame with graphics, use text objects)
-        if (!this._stationLabels) {
-            this._stationLabels = [];
-            for (let i = 0; i < 5; i++) {
-                const pos = PROC_POS[i];
-                const label = this.add.text(pos.x, pos.y + hh + 4, PROC_DATA[i].name, {
-                    fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
-                }).setOrigin(0.5).setDepth(10);
-                this._stationLabels.push(label);
-            }
-        }
-    }
-
-    drawBoosts() {
-        for (let j = 0; j < 3; j++) {
-            const g = this.boostGfx[j];
-            const bs = this.boostState[j];
-            const data = ROUND_BOOSTS[j];
-            const x = BOOST_X[j];
-            g.clear();
-
-            const inv = this.investing === j;
-            const done = bs.done;
-
-            let bg, brd, bw;
-            if (done) { bg = 0x4CAF50; brd = 0x228B22; bw = 3; }
-            else if (inv) { bg = 0xFF6B35; brd = 0xFF6B35; bw = 3; }
-            else {
-                bg = data.color; brd = 0x654321; bw = 2;
-            }
-
-            const pw = BOOST_W / 2, ph = BOOST_H / 2;
-            g.fillStyle(bg, 1); g.fillRoundedRect(x - pw, BOOST_Y - ph, BOOST_W, BOOST_H, 10);
-            g.lineStyle(bw, brd, 1); g.strokeRoundedRect(x - pw, BOOST_Y - ph, BOOST_W, BOOST_H, 10);
-
-            // Progress bar
-            if (!done) {
-                const barY = BOOST_Y + ph - 12, barW = BOOST_W - 16, barH = 5;
-                g.fillStyle(0x333333, 0.5); g.fillRoundedRect(x - barW / 2, barY, barW, barH, 2);
-                const ratio = bs.progress / data.investTime;
-                if (ratio > 0) {
-                    g.fillStyle(inv ? 0xFFD700 : 0x999999, 1);
-                    g.fillRoundedRect(x - barW / 2, barY, barW * ratio, barH, 2);
-                }
-            }
-
-            this.boostDoneTxt[j].setVisible(done);
-        }
-    }
-
-    // ---- Main update ----
-    update(_, delta) {
-        delta = Math.min(delta, 100);
-        const dt = delta / 1000;
-
-        // Boss face red timer
-        if (this.bossFaceRedTimer > 0) this.bossFaceRedTimer -= dt;
-
-        if (!this.roundStarted) {
-            this.drawBossArea();
-            return;
-        }
-
-        // Event pause — processes STILL decay during events!
-        if (this.eventPaused) {
-            this.evtTimeout -= dt;
-            if (this.evtTimeout <= 0) {
-                const evtIdx = this.usedEvents[this.usedEvents.length - 1];
-                EVENTS[evtIdx].optA.apply(this);
-                this.dismissEvent();
-            }
-            for (let i = 0; i < 5; i++) {
-                const p = this.procs[i];
-                if (p.autoHealRate > 0) p.health = Math.min(100, p.health + p.autoHealRate * dt);
-                const pressure = (1 + p.queue.length * 0.12);
-                p.health = Math.max(0, p.health - PROC_DATA[i].decay * p.decayMult * pressure * this.getDecayScale() * dt);
-            }
-            this.drawStations(); this.drawBoosts(); this.drawBossArea();
-            return;
-        }
-
-        // Timer
-        this.timeLeft -= dt;
-        if (this.timeLeft <= 0) { this.timeLeft = 0; this.endRound(); return; }
-
-        // Heal debuff
-        if (this.healDebuffTimer > 0) {
-            this.healDebuffTimer -= dt;
-            if (this.healDebuffTimer <= 0) { this.healMult = 1; this.healDebuffTxt.setVisible(false); }
-            else this.healDebuffTxt.setText('\u26A0\uFE0F Heal reducido \u2014 ' + Math.ceil(this.healDebuffTimer) + 's').setVisible(true);
-        }
-
-        // Arrivals
-        this.arrivalAccum += dt;
-        if (this.arrivalAccum >= this.getArrivalInterval()) {
-            const type = this.getClientType();
-            if (this.procs[0].queue.length < CLIENT_MAX) {
-                this.procs[0].queue.push({ type, age: 0 });
-                this.roundArrived++;
-                this.gs.totalArrived++;
-                this.bounceQueueDot(0);
-            } else {
-                this.clientLost(0);
-            }
-            this.arrivalAccum = 0;
-        }
-        this.arrivalTxt.setAlpha(Math.sin(this.time.now / 400) * 0.3 + 0.7);
-
-        // Process updates
-        for (let i = 0; i < 5; i++) this.updateProcess(i, dt);
-
-        // Boost investment
-        if (this.investing >= 0 && !this.boostState[this.investing].done) {
-            this.boostState[this.investing].progress += dt;
-            if (this.boostState[this.investing].progress >= ROUND_BOOSTS[this.investing].investTime) {
-                this.completeBoost(this.investing);
-            }
-        }
-
-        // Events
-        this.eventAccum += dt;
-        const evtInt = this.getEventInterval();
-        if (this.eventAccum >= evtInt && this.timeLeft > 15) {
-            this.triggerEvent(); this.eventAccum = 0;
-        }
-
-        // HUD updates
-        const secs = Math.ceil(this.timeLeft);
-        this.timerTxt.setText(fmtTime(secs));
-        if (secs <= 15) {
-            const pulse = Math.sin(this.time.now / 200) * 0.5 + 0.5;
-            const r = Math.round(200 + 55 * pulse);
-            const gb = Math.round(20 + 40 * pulse);
-            this.timerTxt.setColor(`rgb(${r}, ${gb}, ${gb})`);
-            this.timerTxt.setScale(1 + pulse * 0.05);
-        } else {
-            this.timerTxt.setColor('#FFFFFF');
-            this.timerTxt.setScale(1);
-        }
-        this.coinsTxt.setText('\u{1FA99} ' + this.gs.coins);
-        this.scoreTxt.setText(String(this.roundScore));
-        this.lostTxt.setText(String(this.roundLost));
-
-        const tier = getComboTier(this.combo);
-
-        // Combo meter bar
-        this.comboBarGfx.clear();
-        const meterX = 378, meterY = 52, meterW = 84, meterH = 4;
-        this.comboBarGfx.fillStyle(0x654321, 0.5);
-        this.comboBarGfx.fillRoundedRect(meterX, meterY, meterW, meterH, 2);
-        let meterFill = 0, meterColor = 0x999999;
-        if (tier.mult >= 3) { meterFill = 1; meterColor = 0xFF0000; }
-        else if (tier.mult >= 2) { meterFill = 0.75; meterColor = 0xFFA500; }
-        else if (tier.mult >= 1.5) { meterFill = 0.5; meterColor = 0xFFD700; }
-        else { meterFill = Math.min(1, this.combo / 3) * 0.25; meterColor = 0x999999; }
-        if (meterFill > 0) {
-            this.comboBarGfx.fillStyle(meterColor, 1);
-            this.comboBarGfx.fillRoundedRect(meterX, meterY, meterW * meterFill, meterH, 2);
-        }
-
-        // Combo display
-        if (tier.mult >= 3) {
-            const pulse = Math.sin(this.time.now / 250) * 0.08 + 1;
-            this.comboTxt.setText('\u{1F525}\u{1F525}' + tier.label).setColor('#ff5722').setFontSize('22px').setScale(pulse);
-            this.goldenTint.setAlpha(0.04 + Math.sin(this.time.now / 500) * 0.02);
-        } else if (tier.mult >= 2) {
-            const pulse = Math.sin(this.time.now / 400) * 0.04 + 1;
-            this.comboTxt.setText('\u{1F525}' + tier.label).setColor('#ff9800').setFontSize('20px').setScale(pulse);
-            this.goldenTint.setAlpha(0);
-        } else if (tier.mult >= 1.5) {
-            const pulse = Math.sin(this.time.now / 600) * 0.03 + 1;
-            this.comboTxt.setText(tier.label).setColor('#ffc107').setFontSize('19px').setScale(pulse);
-            this.goldenTint.setAlpha(0);
-        } else {
-            this.comboTxt.setText(tier.label).setColor('#FFFFFF').setFontSize('18px').setScale(1);
-            this.goldenTint.setAlpha(0);
-        }
-
-        if (this.attending >= 0) this.statusTxt.setText('\u{1F527} Atendiendo: ' + PROC_DATA[this.attending].name).setColor('#228B22');
-        else if (this.investing >= 0) this.statusTxt.setText('\u{1F477} Invirtiendo en: ' + ROUND_BOOSTS[this.investing].name + '...').setColor('#FF6B35');
-        else this.statusTxt.setText('Click una estacion para atenderla').setColor('#654321');
-
-        this.drawStations(); this.drawBoosts(); this.drawBossArea();
-    }
-
-    // ---- End round ----
-    endRound() {
-        if (this.ended) return;
-        this.ended = true;
-
-        // Quality bonus
-        if (this.roundLost === 0) {
-            this.gs.coins += COIN_QUALITY_BONUS;
-            this.roundCoins += COIN_QUALITY_BONUS;
-        }
-
-        this.gs.totalScore += this.roundScore;
-        let inPipeline = 0;
-        this.procs.forEach(p => inPipeline += p.queue.length);
-
-        this.gs.roundStats.push({
-            round: this.round, score: this.roundScore, lost: this.roundLost,
-            coins: this.roundCoins, maxCombo: this.maxCombo, arrived: this.roundArrived,
-        });
-
-        this.cameras.main.fadeOut(300, 0xC4, 0x95, 0x6A);
-        this.time.delayedCall(300, () => {
-            if (this.round < TOTAL_ROUNDS) {
-                this.gs.round++;
-                this.scene.start('ShopScene', { gameState: this.gs });
-            } else {
-                this.scene.start('EndScene', { gameState: this.gs });
-            }
-        });
-    }
+    drawGameScene(now);
 }
 
 // ===================================================================
 // SHOP SCENE
 // ===================================================================
 
-class ShopScene extends Phaser.Scene {
-    constructor() { super('ShopScene'); }
+function startShopScene() {
+    showScreen('shop');
+    drawShopScene();
+    buildShopDOM();
+}
 
-    init(data) { this.gs = data.gameState; }
+function drawShopScene() {
+    drawWoodBackground();
 
-    create() {
-        this.cameras.main.fadeIn(400, 0xC4, 0x95, 0x6A);
+    // Header bar
+    ctx.fillStyle = '#2a1a0e';
+    ctx.fillRect(0, 0, W, 90);
+    ctx.fillStyle = '#5D3A1A';
+    ctx.fillRect(0, 88, W, 2);
 
-        drawWoodBackground(this);
+    const lastRound = gs.roundStats[gs.roundStats.length - 1];
 
-        const lastRound = this.gs.roundStats[this.gs.roundStats.length - 1];
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '900 26px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3;
+    ctx.strokeText('DIA ' + lastRound.round + ' COMPLETADO', W / 2, 22);
+    ctx.fillText('DIA ' + lastRound.round + ' COMPLETADO', W / 2, 22);
 
-        // Header
-        const headerGfx = this.add.graphics().setDepth(1);
-        headerGfx.fillStyle(0x654321, 1); headerGfx.fillRect(0, 0, W, 90);
-        headerGfx.lineStyle(2, 0x8B4513, 1); headerGfx.lineBetween(0, 90, W, 90);
+    // Stats bar
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    fillRoundRect(W / 2 - 280, 48, 560, 28, 8);
 
-        this.add.text(W / 2, 22, 'DIA ' + lastRound.round + ' COMPLETADO', {
-            fontSize: '26px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
-            stroke: '#1a1a1a', strokeThickness: 3
-        }).setOrigin(0.5).setDepth(2);
+    const statsLine = [
+        'Exitosos: ' + lastRound.score,
+        'Perdidos: ' + lastRound.lost,
+        'Combo max: x' + getComboTier(lastRound.maxCombo).mult,
+        'Coins: +' + lastRound.coins + (lastRound.lost === 0 ? ' (+10 bonus!)' : ''),
+    ].join('    |    ');
+    ctx.font = '700 11px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#D2B48C';
+    ctx.lineWidth = 0;
+    ctx.fillText(statsLine, W / 2, 62);
 
-        // Round stats
-        const statsPanel = this.add.graphics().setDepth(1);
-        statsPanel.fillStyle(0x8B6847, 0.6); statsPanel.fillRoundedRect(W / 2 - 280, 48, 560, 28, 8);
+    // Balance with coin icon
+    drawCoinIcon(W / 2 - 90, 120, 14);
+    ctx.font = '900 20px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3;
+    ctx.textAlign = 'center';
+    ctx.strokeText('Balance: ' + gs.coins + ' coins', W / 2 + 10, 120);
+    ctx.fillText('Balance: ' + gs.coins + ' coins', W / 2 + 10, 120);
 
-        const statsLine = [
-            'Exitosos: ' + lastRound.score,
-            'Perdidos: ' + lastRound.lost,
-            'Combo max: x' + getComboTier(lastRound.maxCombo).mult,
-            'Coins: +' + lastRound.coins + (lastRound.lost === 0 ? ' (+10 bonus!)' : ''),
-        ].join('    |    ');
-        this.add.text(W / 2, 62, statsLine, {
-            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#D2B48C'
-        }).setOrigin(0.5).setDepth(2);
+    ctx.font = '900 14px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#8B5E3C';
+    ctx.lineWidth = 0;
+    ctx.fillText('TIENDA DE MEJORAS', W / 2, 155);
 
-        // Balance
-        this.balanceTxt = this.add.text(W / 2, 120, '\u{1FA99} Balance: ' + this.gs.coins + ' coins', {
-            fontSize: '20px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
-            stroke: '#1a1a1a', strokeThickness: 3
-        }).setOrigin(0.5).setDepth(2);
+    // Next day button background (yellow)
+    ctx.fillStyle = '#FFD700';
+    fillRoundRect(W / 2 - 150, 754, 300, 52, 16);
+    // Button shadow
+    ctx.fillStyle = '#DAA520';
+    fillRoundRect(W / 2 - 150, 802, 300, 4, 2);
+    ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 3;
+    strokeRoundRect(W / 2 - 150, 754, 300, 52, 16);
+    ctx.font = '900 16px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#5D3A1A';
+    ctx.fillText('SIGUIENTE DIA  \u2192  Dia ' + gs.round, W / 2, 780);
+}
 
-        this.add.text(W / 2, 155, 'TIENDA DE MEJORAS', {
-            fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#8B6847', letterSpacing: 2
-        }).setOrigin(0.5).setDepth(2);
+function buildShopDOM() {
+    const shopEl = document.getElementById('screen-shop');
+    // Clear previous
+    shopEl.innerHTML = '';
 
-        // Upgrade cards - 2 columns x 4 rows (portrait layout)
-        this.cardGfx = [];
-        this.cardLabels = [];
-        const COL_X = [W / 2 - 140, W / 2 + 140];
-        const ROW_Y = [240, 380, 520, 660];
-        const CW = 240, CH = 115;
+    const COL_X = [W / 2 - 140, W / 2 + 140];
+    const ROW_Y = [240, 380, 520, 660];
+    const CW = 240, CH = 115;
 
-        for (let j = 0; j < UPGRADES.length; j++) {
-            const u = UPGRADES[j];
-            // Map to 2-column layout
-            const col = j % 2;
-            const row = Math.floor(j / 2);
-            const cx = COL_X[col];
-            const cy = ROW_Y[row];
-            const owned = !!this.gs.upgrades[u.id];
-            const canAfford = this.gs.coins >= u.price;
+    for (let j = 0; j < UPGRADES.length; j++) {
+        const u = UPGRADES[j];
+        const col = j % 2;
+        const row = Math.floor(j / 2);
+        const cx = COL_X[col];
+        const cy = ROW_Y[row];
+        const owned = !!gs.upgrades[u.id];
+        const canAfford = gs.coins >= u.price;
 
-            const g = this.add.graphics().setDepth(1);
-            this.cardGfx.push(g);
+        const card = document.createElement('div');
+        card.className = 'shop-card';
+        if (owned) card.classList.add('shop-owned');
+        else if (canAfford) card.classList.add('shop-afford');
+        else card.classList.add('shop-broke');
+        card.style.left = (cx - CW / 2) + 'px';
+        card.style.top = (cy - CH / 2) + 'px';
 
-            this.drawCard(g, cx, cy, CW, CH, u, owned, canAfford);
+        const buyBtnText = owned ? '\u2705 Comprado' : (canAfford ? 'COMPRAR' : 'Sin coins');
+        const priceText = owned ? '' : `\u{1FA99} ${u.price}`;
 
-            this.add.text(cx, cy - 32, u.emoji, { fontSize: '24px' }).setOrigin(0.5).setDepth(2);
-            this.add.text(cx, cy - 4, u.name, {
-                fontSize: '12px', fontFamily: 'Arial, sans-serif', color: owned ? '#228B22' : '#1a1a1a', fontStyle: 'bold'
-            }).setOrigin(0.5).setDepth(2);
-            this.add.text(cx, cy + 16, u.desc, {
-                fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#555555', align: 'center', lineSpacing: 2
-            }).setOrigin(0.5).setDepth(2);
+        card.innerHTML = `
+            <div class="sc-emoji">${u.emoji}</div>
+            <div class="sc-name">${u.name}</div>
+            <div class="sc-desc">${u.desc}</div>
+            <div class="sc-price" style="color:${owned ? '#4CAF50' : (canAfford ? '#8B6914' : '#CC0000')}">${priceText}</div>
+            <div class="sc-buy-btn">${buyBtnText}</div>
+        `;
 
-            const priceTxt = this.add.text(cx, cy + 42, owned ? '\u2705 Comprado' : '\u{1FA99} ' + u.price, {
-                fontSize: '11px', fontFamily: 'Arial, sans-serif',
-                color: owned ? '#228B22' : (canAfford ? '#8B6914' : '#CC0000'), fontStyle: 'bold'
-            }).setOrigin(0.5).setDepth(2);
-            this.cardLabels.push(priceTxt);
-
-            if (!owned && canAfford) {
-                const zone = this.add.zone(cx, cy, CW, CH).setInteractive({ useHandCursor: true }).setDepth(5);
-                zone.on('pointerdown', () => this.buyUpgrade(j));
-            }
+        if (!owned && canAfford) {
+            card.addEventListener('click', () => {
+                gs.coins -= u.price;
+                gs.upgrades[u.id] = true;
+                // Redraw shop
+                drawShopScene();
+                buildShopDOM();
+            });
         }
 
-        // Next day button
-        const nextRound = this.gs.round;
-        this.makeBtn(W / 2, 780, 'SIGUIENTE DIA  \u2192  Dia ' + nextRound, () => {
-            this.cameras.main.fadeOut(300, 0xC4, 0x95, 0x6A);
-            this.time.delayedCall(300, () => {
-                this.scene.start('GameScene', { gameState: this.gs });
-            });
+        shopEl.appendChild(card);
+    }
+
+    // Next day button
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'game-btn btn-green';
+    nextBtn.style.cssText = 'left:170px;top:754px;width:300px;height:52px;font-size:16px;border-radius:16px;';
+    nextBtn.textContent = 'SIGUIENTE DIA  \u2192  Dia ' + gs.round;
+    nextBtn.addEventListener('click', () => {
+        fadeTransition('shop', () => {
+            showScreen('game');
+            initGame(gs);
         });
-    }
-
-    drawCard(g, cx, cy, cw, ch, u, owned, canAfford) {
-        const hw = cw / 2, hh = ch / 2;
-        let bg, brd, brdW;
-        if (owned) { bg = 0xF5F5F5; brd = 0x4caf50; brdW = 3; }
-        else if (canAfford) { bg = 0xFFFFFF; brd = 0x1F77B4; brdW = 2; }
-        else { bg = 0xE0E0E0; brd = 0x999999; brdW = 1; }
-        g.fillStyle(bg, 1); g.fillRoundedRect(cx - hw, cy - hh, cw, ch, 10);
-        g.lineStyle(brdW, brd, 1); g.strokeRoundedRect(cx - hw, cy - hh, cw, ch, 10);
-    }
-
-    buyUpgrade(idx) {
-        const u = UPGRADES[idx];
-        if (this.gs.upgrades[u.id] || this.gs.coins < u.price) return;
-        this.gs.coins -= u.price;
-        this.gs.upgrades[u.id] = true;
-        this.scene.restart({ gameState: this.gs });
-    }
-
-    makeBtn(x, y, label, fn) {
-        const c = this.add.container(x, y).setDepth(3);
-        const bg = this.add.graphics();
-        const draw = (f, s) => {
-            bg.clear(); bg.fillStyle(f, 1); bg.fillRoundedRect(-150, -26, 300, 52, 12);
-            bg.lineStyle(2, s, 1); bg.strokeRoundedRect(-150, -26, 300, 52, 12);
-        };
-        draw(0x32CD32, 0x228B22);
-        const t = this.add.text(0, 0, label, {
-            fontSize: '16px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
-        }).setOrigin(0.5);
-        c.add([bg, t]).setSize(300, 52).setInteractive({ useHandCursor: true });
-        c.on('pointerover', () => { draw(0x3DE03D, 0x228B22); c.setScale(1.05); });
-        c.on('pointerout', () => { draw(0x32CD32, 0x228B22); c.setScale(1); });
-        c.on('pointerdown', fn);
-    }
+    });
+    shopEl.appendChild(nextBtn);
 }
 
 // ===================================================================
 // END SCENE
 // ===================================================================
 
-class EndScene extends Phaser.Scene {
-    constructor() { super('EndScene'); }
-    init(data) { this.gs = data.gameState; }
+function startEndScene() {
+    showScreen('end');
+    drawEndScene();
+    wireEndButtons();
+}
 
-    create() {
-        this.cameras.main.fadeIn(500, 0xC4, 0x95, 0x6A);
+function drawEndScene() {
+    // Vertical stripes background (soft blue tones)
+    drawStripesBackground('#E8F4FD', '#D6ECFA');
 
-        const d = this.gs;
+    const d = gs;
 
-        drawWoodBackground(this);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
-        this.add.text(W / 2, 50, 'FIN DEL JUEGO', {
-            fontSize: '36px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
-            stroke: '#1a1a1a', strokeThickness: 4
-        }).setOrigin(0.5).setDepth(2);
+    // Title
+    ctx.font = '900 38px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 5;
+    ctx.strokeText('FIN DEL JUEGO', W / 2, 50);
+    ctx.fillText('FIN DEL JUEGO', W / 2, 50);
 
-        // Big score
-        const bigScore = this.add.text(W / 2, 130, String(d.totalScore), {
-            fontSize: '60px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
-            stroke: '#1a1a1a', strokeThickness: 5
-        }).setOrigin(0.5).setDepth(2);
-        bigScore.setScale(0.5).setAlpha(0);
-        this.tweens.add({ targets: bigScore, scaleX: 1, scaleY: 1, alpha: 1, duration: 500, ease: 'Back.easeOut' });
+    // Big gold score number
+    ctx.font = '900 72px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 6;
+    ctx.strokeText(String(d.totalScore), W / 2, 130);
+    ctx.fillText(String(d.totalScore), W / 2, 130);
 
-        this.add.text(W / 2, 175, 'CLIENTES EXITOSOS EN 8 DIAS', {
-            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#8B6847', letterSpacing: 2
-        }).setOrigin(0.5).setDepth(2);
+    ctx.font = '700 11px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#888'; ctx.lineWidth = 0;
+    ctx.fillText('CLIENTES EXITOSOS EN 8 DIAS', W / 2, 175);
 
-        // Stats
-        const upgradeCount = Object.keys(d.upgrades).length;
-        const bestRound = d.roundStats.reduce((a, b) => a.score > b.score ? a : b);
-        const totalCoins = d.roundStats.reduce((sum, r) => sum + r.coins, 0);
-        const maxCombo = Math.max(...d.roundStats.map(r => r.maxCombo));
+    // Stats panel (white rounded card)
+    const upgradeCount = Object.keys(d.upgrades).length;
+    const bestRound = d.roundStats.reduce((a, b) => a.score > b.score ? a : b);
+    const totalCoins = d.roundStats.reduce((sum, r) => sum + r.coins, 0);
+    const maxCombo = Math.max(...d.roundStats.map(r => r.maxCombo));
 
-        const sy = 220;
-        const statsPanel = this.add.graphics().setDepth(1);
-        statsPanel.fillStyle(0xFFFFFF, 0.7);
-        statsPanel.fillRoundedRect(W / 2 - 260, sy - 18, 520, 210, 12);
-        statsPanel.lineStyle(1, 0xD2B48C, 1);
-        statsPanel.strokeRoundedRect(W / 2 - 260, sy - 18, 520, 210, 12);
+    const sy = 220;
+    ctx.fillStyle = '#FFF8E7';
+    fillRoundRect(W / 2 - 260, sy - 18, 520, 210, 16);
+    // Card shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    fillRoundRect(W / 2 - 256, sy + 196, 512, 6, 3);
+    ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 2;
+    strokeRoundRect(W / 2 - 260, sy - 18, 520, 210, 16);
 
-        const stats = [
-            ['Clientes que llegaron', d.totalArrived, '#555555'],
-            ['Clientes perdidos', d.totalLost, d.totalLost > 0 ? '#CC0000' : '#228B22'],
-            ['Coins ganados total', totalCoins, '#8B6914'],
-            ['Upgrades comprados', upgradeCount + '/8', '#1F77B4'],
-            ['Mejor dia', 'Dia ' + bestRound.round + ' (' + bestRound.score + ' exitosos)', '#228B22'],
-            ['Combo maximo', 'x' + getComboTier(maxCombo).mult + ' (' + maxCombo + ' seguidos)', '#FF6B35'],
-        ];
-        stats.forEach(([label, val, color], i) => {
-            this.add.text(W / 2 - 200, sy + i * 32, label, {
-                fontSize: '13px', fontFamily: 'Arial, sans-serif', color: '#333333'
-            }).setOrigin(0, 0.5).setDepth(2);
-            this.add.text(W / 2 + 200, sy + i * 32, String(val), {
-                fontSize: '14px', fontFamily: 'Arial Black, Arial, sans-serif', color, fontStyle: 'bold'
-            }).setOrigin(1, 0.5).setDepth(2);
-        });
+    const stats = [
+        ['Clientes que llegaron', String(d.totalArrived), '#555555'],
+        ['Clientes perdidos', String(d.totalLost), d.totalLost > 0 ? '#CC0000' : '#4CAF50'],
+        ['Coins ganados total', String(totalCoins), '#8B6914'],
+        ['Upgrades comprados', upgradeCount + '/8', '#1F77B4'],
+        ['Mejor dia', 'Dia ' + bestRound.round + ' (' + bestRound.score + ' exitosos)', '#4CAF50'],
+        ['Combo maximo', 'x' + getComboTier(maxCombo).mult + ' (' + maxCombo + ' seguidos)', '#FF6B35'],
+    ];
 
-        // Message
-        let msg;
-        if (d.totalScore >= 80) msg = 'Maestro/a del flywheel. Encontraste el balance perfecto entre operar e invertir.';
-        else if (d.totalScore >= 55) msg = 'Buen manejo operativo. Tu equipo CS estaria orgulloso.';
-        else if (d.totalScore >= 35) msg = 'Sobreviviste los 8 dias. Las mejoras hicieron la diferencia.';
-        else if (d.totalScore >= 20) msg = 'Dia dificil. Invertir temprano en upgrades es clave.';
-        else msg = 'Semana complicada. Tip: compra auto-heal temprano para liberar tiempo.';
+    for (let i = 0; i < stats.length; i++) {
+        const [label, val, color] = stats[i];
+        ctx.font = '700 13px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#555';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, W / 2 - 200, sy + i * 32);
+        ctx.font = '900 14px "Nunito", Arial, sans-serif'; ctx.fillStyle = color;
+        ctx.textAlign = 'right';
+        ctx.fillText(val, W / 2 + 200, sy + i * 32);
+    }
+    ctx.textAlign = 'center';
 
-        this.add.text(W / 2, 460, msg, {
-            fontSize: '15px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a',
-            fontStyle: 'italic', align: 'center', wordWrap: { width: 500 }
-        }).setOrigin(0.5).setDepth(2);
+    // Message
+    let msg;
+    if (d.totalScore >= 80) msg = 'Maestro/a del flywheel. Encontraste el balance perfecto entre operar e invertir.';
+    else if (d.totalScore >= 55) msg = 'Buen manejo operativo. Tu equipo CS estaria orgulloso.';
+    else if (d.totalScore >= 35) msg = 'Sobreviviste los 8 dias. Las mejoras hicieron la diferencia.';
+    else if (d.totalScore >= 20) msg = 'Dia dificil. Invertir temprano en upgrades es clave.';
+    else msg = 'Semana complicada. Tip: compra auto-heal temprano para liberar tiempo.';
 
-        // Lesson
-        let lesson;
-        if (upgradeCount === 0) lesson = 'Sin proyectos, las operaciones colapsan. La inversion en mejoras no es opcional.';
-        else if (upgradeCount >= 5 && d.totalScore >= 50) lesson = 'Los proyectos liberaron capacidad. Asi funciona el flywheel en la vida real.';
-        else if (upgradeCount >= 4 && d.totalScore < 25) lesson = 'Muchos upgrades pero pocos resultados. El timing de las compras importa.';
-        else lesson = 'Cada mejora reduce la carga operativa. El equilibrio entre operar e invertir es el flywheel de CS.';
+    ctx.font = '700 italic 15px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#5D3A1A';
+    wrapText(msg, W / 2, 460, 500, 20);
 
-        this.add.text(W / 2, 510, lesson, {
-            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#8B6847', align: 'center', wordWrap: { width: 500 }
-        }).setOrigin(0.5).setDepth(2);
+    // Lesson
+    let lesson;
+    if (upgradeCount === 0) lesson = 'Sin proyectos, las operaciones colapsan. La inversion en mejoras no es opcional.';
+    else if (upgradeCount >= 5 && d.totalScore >= 50) lesson = 'Los proyectos liberaron capacidad. Asi funciona el flywheel en la vida real.';
+    else if (upgradeCount >= 4 && d.totalScore < 25) lesson = 'Muchos upgrades pero pocos resultados. El timing de las compras importa.';
+    else lesson = 'Cada mejora reduce la carga operativa. El equilibrio entre operar e invertir es el flywheel de CS.';
 
-        // Flywheel banner
-        const fg = this.add.graphics().setDepth(1);
-        fg.fillStyle(0x8B4513, 1); fg.fillRoundedRect(W / 2 - 280, 560, 560, 36, 8);
-        fg.lineStyle(1, 0x654321, 1); fg.strokeRoundedRect(W / 2 - 280, 560, 560, 36, 8);
-        this.add.text(W / 2, 578, '\u{1F504}  Mas exitos \u2192 Menor riesgo \u2192 Mejor tasa \u2192 Mas acceso \u2192 Mas clientes \u2192 Loop', {
-            fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#FFD700', fontStyle: 'italic'
-        }).setOrigin(0.5).setDepth(2);
+    ctx.font = '700 11px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#888';
+    wrapText(lesson, W / 2, 510, 500, 16);
 
-        // Upgrades purchased
-        if (upgradeCount > 0) {
-            const upEmojis = UPGRADES.filter(u => d.upgrades[u.id]).map(u => u.emoji + ' ' + u.name).join('   ');
-            this.add.text(W / 2, 620, 'Mejoras compradas: ' + upEmojis, {
-                fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#228B22',
-                wordWrap: { width: 500 }, align: 'center'
-            }).setOrigin(0.5).setDepth(2);
-        }
+    // Flywheel banner
+    ctx.fillStyle = '#5D3A1A';
+    fillRoundRect(W / 2 - 280, 560, 560, 36, 10);
+    ctx.strokeStyle = '#8B5E3C'; ctx.lineWidth = 2;
+    strokeRoundRect(W / 2 - 280, 560, 560, 36, 10);
+    ctx.font = '700 italic 10px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    ctx.fillText('\u{1F504}  Mas exitos \u2192 Menor riesgo \u2192 Mejor tasa \u2192 Mas acceso \u2192 Mas clientes \u2192 Loop', W / 2, 578);
 
-        // Workers celebration row
-        const celebGfx = this.add.graphics().setDepth(1);
-        for (let i = 0; i < 5; i++) {
-            const wx = 110 + i * 110;
-            const wy = 700;
-            const armOff = Math.sin(Date.now() / 200 + i) * 6;
-            drawWorker(celebGfx, wx, wy, WORKER_SHIRTS[i], WORKER_SKINS[i], WORKER_HAIR[i], armOff, 0);
-        }
-
-        // Buttons
-        this.makeBtn(W / 2 - 130, 790, 'Compartir', () => this.share());
-        this.makeBtn(W / 2 + 130, 790, 'Jugar de nuevo', () => {
-            this.cameras.main.fadeOut(300, 0xC4, 0x95, 0x6A);
-            this.time.delayedCall(300, () => this.scene.start('MenuScene'));
-        });
+    // Upgrades purchased
+    if (upgradeCount > 0) {
+        const upEmojis = UPGRADES.filter(u => d.upgrades[u.id]).map(u => u.emoji + ' ' + u.name).join('   ');
+        ctx.font = '700 10px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#4CAF50';
+        wrapText('Mejoras compradas: ' + upEmojis, W / 2, 620, 500, 14);
     }
 
-    makeBtn(x, y, label, fn) {
-        const c = this.add.container(x, y).setDepth(3);
-        const bg = this.add.graphics();
-        const draw = (f, s) => {
-            bg.clear(); bg.fillStyle(f, 1); bg.fillRoundedRect(-105, -24, 210, 48, 10);
-            bg.lineStyle(2, s, 1); bg.strokeRoundedRect(-105, -24, 210, 48, 10);
-        };
-        draw(0x32CD32, 0x228B22);
-        const t = this.add.text(0, 0, label, {
-            fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
-        }).setOrigin(0.5);
-        c.add([bg, t]).setSize(210, 48).setInteractive({ useHandCursor: true });
-        c.on('pointerover', () => { draw(0x3DE03D, 0x228B22); c.setScale(1.05); });
-        c.on('pointerout', () => { draw(0x32CD32, 0x228B22); c.setScale(1); });
-        c.on('pointerdown', fn);
-    }
+    // Boss and worker celebrating together
+    const armOff = Math.sin(Date.now() / 200) * 6;
+    drawBoss(W / 2 - 60, 700, armOff, true, false);
+    drawWorker(W / 2 + 60, 700, '#2196F3', '#FFD5A0', '#333333', armOff, 0, 1.8);
 
-    share() {
-        const d = this.gs;
+    // Button backgrounds (yellow)
+    ctx.fillStyle = '#FFD700';
+    fillRoundRect(25, 766, 210, 48, 14);
+    ctx.fillStyle = '#DAA520';
+    fillRoundRect(25, 810, 210, 4, 2);
+    ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 2;
+    strokeRoundRect(25, 766, 210, 48, 14);
+    ctx.font = '900 14px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#5D3A1A';
+    ctx.textAlign = 'center';
+    ctx.fillText('Compartir', 130, 790);
+
+    ctx.fillStyle = '#FFD700';
+    fillRoundRect(255, 766, 210, 48, 14);
+    ctx.fillStyle = '#DAA520';
+    fillRoundRect(255, 810, 210, 4, 2);
+    ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 2;
+    strokeRoundRect(255, 766, 210, 48, 14);
+    ctx.font = '900 14px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#5D3A1A';
+    ctx.fillText('Jugar de nuevo', 360, 790);
+}
+
+function wrapText(text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    let ty = y;
+    for (const word of words) {
+        const test = line + word + ' ';
+        if (ctx.measureText(test).width > maxWidth && line.length > 0) {
+            ctx.fillText(line.trim(), x, ty);
+            line = word + ' ';
+            ty += lineHeight;
+        } else {
+            line = test;
+        }
+    }
+    ctx.fillText(line.trim(), x, ty);
+}
+
+function wireEndButtons() {
+    document.getElementById('btn-share').onclick = () => {
+        const d = gs;
         const maxCombo = Math.max(...d.roundStats.map(r => r.maxCombo));
         const txt = [
             'Un Dia en Ops v2 \u2014 Duppla',
@@ -1812,35 +2855,94 @@ class EndScene extends Phaser.Scene {
             d.totalScore >= 55 ? 'Buen manejo operativo' :
             d.totalScore >= 35 ? 'Sobrevivi los 8 dias' : 'Semana complicada...',
         ].join('\n');
-        if (navigator.share) navigator.share({ text: txt }).catch(() => this.copyTxt(txt));
-        else this.copyTxt(txt);
+        if (navigator.share) {
+            navigator.share({ text: txt }).catch(() => copyAndToast(txt));
+        } else {
+            copyAndToast(txt);
+        }
+    };
+
+    document.getElementById('btn-replay').onclick = () => {
+        fadeTransition('end', () => {
+            startMenu();
+        });
+    };
+}
+
+function copyAndToast(txt) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(txt).then(
+            () => showToast('Copiado al portapapeles'),
+            () => showToast('No se pudo copiar')
+        );
+    } else {
+        showToast('Clipboard no disponible');
+    }
+}
+
+function showToast(msg) {
+    const el = document.createElement('div');
+    el.className = 'toast-msg';
+    el.textContent = msg;
+    document.getElementById('dom-layer').appendChild(el);
+    setTimeout(() => el.remove(), 1500);
+}
+
+// ===================================================================
+// START MENU
+// ===================================================================
+
+function startMenu() {
+    game = null;
+    gs = null;
+    showScreen('menu');
+    drawMenuScene();
+}
+
+document.getElementById('btn-jugar').addEventListener('click', () => {
+    fadeTransition('menu', () => {
+        gs = freshGameState();
+        showScreen('game');
+        initGame(gs);
+    });
+});
+
+// ===================================================================
+// MAIN GAME LOOP
+// ===================================================================
+
+let lastTime = 0;
+
+function mainLoop(timestamp) {
+    const now = timestamp;
+    let dt = (now - lastTime) / 1000;
+    if (dt > 0.1) dt = 0.1;
+    lastTime = now;
+
+    updateTweens(dt);
+    updateParticles(dt);
+
+    if (currentScreen === 'menu') {
+        // Menu is static, only redraw occasionally (or we can just keep it)
+        // Already drawn once. No need to redraw unless something changes.
+    } else if (currentScreen === 'game' && game) {
+        updateGame(dt, now);
+    } else if (currentScreen === 'shop') {
+        // Shop is static canvas + DOM. No per-frame updates needed.
+    } else if (currentScreen === 'end') {
+        // End is static, but workers could animate
+        drawEndScene();
     }
 
-    copyTxt(txt) {
-        if (navigator.clipboard) navigator.clipboard.writeText(txt).then(
-            () => this.toast('Copiado al portapapeles'), () => this.toast('No se pudo copiar'));
-        else this.toast('Clipboard no disponible');
-    }
-
-    toast(msg) {
-        const t = this.add.text(W / 2, 850, msg, {
-            fontSize: '13px', fontFamily: 'Arial, sans-serif', color: '#228B22'
-        }).setOrigin(0.5).setDepth(5);
-        this.tweens.add({ targets: t, alpha: 0, y: 835, duration: 1500, onComplete: () => t.destroy() });
-    }
+    requestAnimationFrame(mainLoop);
 }
 
 // ===================================================================
 // BOOT
 // ===================================================================
-
-new Phaser.Game({
-    type: Phaser.AUTO,
-    width: W, height: H,
-    backgroundColor: '#C4956A',
-    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-    scene: [MenuScene, GameScene, ShopScene, EndScene]
-});
+startMenu();
+lastTime = performance.now();
+requestAnimationFrame(mainLoop);
 
 </script>
 </body>

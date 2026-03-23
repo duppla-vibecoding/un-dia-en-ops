@@ -7,22 +7,23 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: #87CEEB;
+            background: #C4956A;
             display: flex; justify-content: center; align-items: center;
             min-height: 100vh; overflow: hidden;
             font-family: 'Segoe UI', Arial, sans-serif;
             -webkit-user-select: none; user-select: none;
         }
+        canvas { image-rendering: -webkit-optimize-contrast; }
     </style>
     <script src="phaser.min.js"></script>
 </head>
 <body>
 <script>
 // ===================================================================
-// UN DIA EN OPS v2 — Factory Game — Duppla
+// UN DIA EN OPS v2 — Make More Style — Duppla
 // ===================================================================
 
-const W = 960, H = 640;
+const W = 640, H = 960;
 
 // --- Config ---
 const TOTAL_ROUNDS = 8;
@@ -49,9 +50,21 @@ const PROC_DATA = [
     { name: 'Operativa',   emoji: '\u2699\uFE0F', processTime: 4.5, decay: 2.2 },
     { name: 'Off Ramp',    emoji: '\u{1F680}', processTime: 7,   decay: 2.0 },
 ];
-const PROC_W = 130, PROC_H = 155;
-const PROC_X = [100, 290, 480, 670, 860];
-const PROC_Y = 200;
+const PROC_W = 160, PROC_H = 155;
+
+// --- Station grid positions (Make More style) ---
+const PROC_POS = [
+    { x: 110, y: 300 },   // Onboarding
+    { x: 320, y: 300 },   // Pre-Entrega
+    { x: 530, y: 300 },   // Entrega
+    { x: 215, y: 480 },   // Operativa
+    { x: 425, y: 480 },   // Off Ramp
+];
+
+// --- Worker shirt colors per process ---
+const WORKER_SHIRTS = [0x2196F3, 0x607D8B, 0xFFC107, 0xF44336, 0x4CAF50];
+const WORKER_SKINS = [0xFFD5A0, 0xD4A574, 0x8B6847, 0xFFD5A0, 0xD4A574];
+const WORKER_HAIR = [0x333333, 0xFFD700, 0x8B0000, 0xFFFFFF, 0x333333];
 
 // --- Client types ---
 const CLIENT_TYPES = {
@@ -129,15 +142,13 @@ const ROUND_BOOSTS = [
     { name: 'Reporte',       emoji: '\u{1F4CB}', investTime: 10, desc: 'Velocidad +50%\nresto del round', color: 0x1F77B4 },
     { name: 'Coordinacion',  emoji: '\u{1F4E2}', investTime: 12, desc: 'Decay -50%\nresto del round',    color: 0x4caf50 },
 ];
-const BOOST_W = 100, BOOST_H = 70;
-const BOOST_X = [340, 480, 620];
-const BOOST_Y = 430;
-
-const CHAR_HOME = { x: W / 2, y: 370 };
+const BOOST_W = 130, BOOST_H = 60;
+const BOOST_X = [130, 320, 510];
+const BOOST_Y = 650;
 
 // --- Utils ---
 function fmtTime(s) { return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }
-function hpColor(hp) { return hp > 60 ? 0x00FF7F : hp > 30 ? 0xFFA500 : 0xFF0000; }
+function hpColor(hp) { return hp > 60 ? 0x4CAF50 : hp > 30 ? 0xFFC107 : 0xF44336; }
 function getComboTier(c) { return COMBO_TIERS.find(t => c >= t.min); }
 
 function freshGameState() {
@@ -147,57 +158,95 @@ function freshGameState() {
     };
 }
 
-// --- Draw sky gradient background helper ---
-function drawSkyGradient(scene) {
+// --- Draw warm wood floor background ---
+function drawWoodBackground(scene) {
     const gfx = scene.add.graphics().setDepth(0);
-    // Sky gradient: top blue -> bottom light green
-    const steps = 32;
-    const topR = 0x87, topG = 0xCE, topB = 0xEB;
-    const botR = 0x90, botG = 0xEE, botB = 0x90;
-    const sliceH = H / steps;
-    for (let i = 0; i < steps; i++) {
-        const t = i / (steps - 1);
-        const r = Math.round(topR + (botR - topR) * t);
-        const g = Math.round(topG + (botG - topG) * t);
-        const b = Math.round(topB + (botB - topB) * t);
-        const color = (r << 16) | (g << 8) | b;
-        gfx.fillStyle(color, 1);
-        gfx.fillRect(0, i * sliceH, W, sliceH + 1);
+    // Solid warm tan/brown
+    gfx.fillStyle(0xC4956A, 1);
+    gfx.fillRect(0, 0, W, H);
+    // Subtle floor board lines every 80px
+    for (let y = 80; y < H; y += 80) {
+        gfx.lineStyle(1, 0xA07850, 0.1);
+        gfx.lineBetween(0, y, W, y);
     }
-    // Floor/ground strip
-    gfx.fillStyle(0x5DB85D, 1);
-    gfx.fillRect(0, 310, W, 10);
-    gfx.fillStyle(0x4AA84A, 1);
-    gfx.fillRect(0, 320, W, H - 320);
+    // Very subtle vertical grain
+    for (let x = 160; x < W; x += 160) {
+        gfx.lineStyle(1, 0xA07850, 0.05);
+        gfx.lineBetween(x, 0, x, H);
+    }
     return gfx;
 }
 
-// --- Draw drifting clouds helper ---
-function createClouds(scene) {
-    const clouds = [];
-    const cloudData = [
-        { x: 100, y: 80, w: 120, h: 40 },
-        { x: 400, y: 50, w: 150, h: 45 },
-        { x: 700, y: 95, w: 100, h: 35 },
-        { x: 250, y: 120, w: 80, h: 30 },
-    ];
-    for (const cd of cloudData) {
-        const cloud = scene.add.graphics().setDepth(0).setAlpha(0.35);
-        cloud.fillStyle(0xFFFFFF, 1);
-        cloud.fillRoundedRect(-cd.w / 2, -cd.h / 2, cd.w, cd.h, cd.h / 2);
-        // Add smaller bumps on top for cloud shape
-        cloud.fillRoundedRect(-cd.w / 4, -cd.h, cd.w / 2, cd.h, cd.h / 3);
-        cloud.fillRoundedRect(-cd.w / 2.5, -cd.h * 0.6, cd.w / 3, cd.h * 0.7, cd.h / 4);
-        cloud.setPosition(cd.x, cd.y);
-        clouds.push(cloud);
-        // Slow drift to the right, looping
-        scene.tweens.add({
-            targets: cloud, x: W + cd.w, duration: Phaser.Math.Between(25000, 40000),
-            ease: 'Linear', repeat: -1,
-            onRepeat: () => { cloud.x = -cd.w; }
-        });
-    }
-    return clouds;
+// --- Draw blocky pixel-art worker ---
+function drawWorker(gfx, cx, cy, shirtColor, skinColor, hairColor, armOffset, shakeX) {
+    const x = cx + (shakeX || 0);
+    const y = cy;
+    // Shadow
+    gfx.fillStyle(0x000000, 0.2);
+    gfx.fillEllipse(x, y + 26, 22, 6);
+    // Body (shirt)
+    gfx.fillStyle(shirtColor, 1);
+    gfx.fillRect(x - 9, y - 6, 18, 22);
+    // Arms
+    gfx.fillStyle(shirtColor, 1);
+    gfx.fillRect(x - 14, y - 4 + armOffset, 5, 14);
+    gfx.fillRect(x + 9, y - 4 + armOffset, 5, 14);
+    // Hands (skin)
+    gfx.fillStyle(skinColor, 1);
+    gfx.fillRect(x - 13, y + 10 + armOffset, 4, 4);
+    gfx.fillRect(x + 10, y + 10 + armOffset, 4, 4);
+    // Head
+    gfx.fillStyle(skinColor, 1);
+    gfx.fillRect(x - 9, y - 24, 18, 18);
+    // Hair
+    gfx.fillStyle(hairColor, 1);
+    gfx.fillRect(x - 9, y - 29, 18, 5);
+    // Eyes
+    gfx.fillStyle(0x000000, 1);
+    gfx.fillRect(x - 5, y - 18, 3, 3);
+    gfx.fillRect(x + 3, y - 18, 3, 3);
+}
+
+// --- Draw boss character (larger) ---
+function drawBoss(gfx, cx, cy, armOffset, comboHigh, faceRed) {
+    const x = cx;
+    const y = cy;
+    // Shadow
+    gfx.fillStyle(0x000000, 0.2);
+    gfx.fillEllipse(x, y + 38, 34, 8);
+    // Body (dark suit)
+    gfx.fillStyle(0x1B2A4A, 1);
+    gfx.fillRect(x - 14, y - 8, 28, 34);
+    // Arms
+    gfx.fillStyle(0x1B2A4A, 1);
+    gfx.fillRect(x - 21, y - 5 + armOffset, 7, 22);
+    gfx.fillRect(x + 14, y - 5 + armOffset, 7, 22);
+    // Hands
+    gfx.fillStyle(0xFFD5A0, 1);
+    gfx.fillRect(x - 20, y + 17 + armOffset, 6, 5);
+    gfx.fillRect(x + 15, y + 17 + armOffset, 6, 5);
+    // Head
+    const headColor = faceRed ? 0xFF6666 : 0xFFD5A0;
+    gfx.fillStyle(headColor, 1);
+    gfx.fillRect(x - 14, y - 36, 28, 28);
+    // Hair
+    gfx.fillStyle(0x333333, 1);
+    gfx.fillRect(x - 14, y - 43, 28, 7);
+    // Eyes
+    gfx.fillStyle(0x000000, 1);
+    gfx.fillRect(x - 8, y - 26, 4, 4);
+    gfx.fillRect(x + 5, y - 26, 4, 4);
+    // Angry eyebrows (angled lines)
+    gfx.lineStyle(2, 0x000000, 1);
+    gfx.lineBetween(x - 10, y - 32, x - 4, y - 30);
+    gfx.lineBetween(x + 10, y - 32, x + 4, y - 30);
+    // Mouth
+    gfx.lineStyle(2, 0x000000, 0.6);
+    gfx.lineBetween(x - 5, y - 14, x + 5, y - 14);
+    // Tie
+    gfx.fillStyle(0xCC0000, 1);
+    gfx.fillRect(x - 2, y - 8, 4, 14);
+    gfx.fillTriangle(x, y + 6, x - 4, y - 2, x + 4, y - 2);
 }
 
 // ===================================================================
@@ -208,62 +257,53 @@ class MenuScene extends Phaser.Scene {
     constructor() { super('MenuScene'); }
 
     create() {
-        this.cameras.main.fadeIn(400, 0x87, 0xCE, 0xEB);
+        this.cameras.main.fadeIn(400, 0xC4, 0x95, 0x6A);
 
-        drawSkyGradient(this);
-        createClouds(this);
+        drawWoodBackground(this);
 
-        // Title on semi-transparent white panel
+        // Title area
         const titlePanel = this.add.graphics().setDepth(1);
-        titlePanel.fillStyle(0xFFFFFF, 0.3);
-        titlePanel.fillRoundedRect(W / 2 - 320, 10, 640, 140, 16);
+        titlePanel.fillStyle(0x654321, 0.85);
+        titlePanel.fillRoundedRect(W / 2 - 280, 30, 560, 120, 16);
 
-        this.add.text(W / 2, 55, 'UN DIA EN OPS', {
-            fontSize: '48px', fontFamily: 'Arial Black, Arial, sans-serif',
+        this.add.text(W / 2, 65, 'UN DIA EN OPS', {
+            fontSize: '44px', fontFamily: 'Arial Black, Arial, sans-serif',
             color: '#FFD700', fontStyle: 'bold',
             stroke: '#1a1a1a', strokeThickness: 4
         }).setOrigin(0.5).setDepth(2);
-        this.add.text(W / 2, 105, 'v2 — Factory Game — Duppla', {
-            fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#333333'
+        this.add.text(W / 2, 115, 'v2 — Factory Game — Duppla', {
+            fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#D2B48C'
         }).setOrigin(0.5).setDepth(2);
 
-        // Pipeline preview — factory blue boxes
-        const py = 175;
+        // Workers preview grid (same layout as game)
+        const previewGfx = this.add.graphics().setDepth(1);
+        const previewPositions = [
+            { x: 170, y: 230 }, { x: 320, y: 230 }, { x: 470, y: 230 },
+            { x: 245, y: 310 }, { x: 395, y: 310 },
+        ];
         for (let i = 0; i < 5; i++) {
-            const x = W / 2 - 280 + i * 140;
-            const g = this.add.graphics().setDepth(1);
-            g.fillStyle(0x1F77B4, 1); g.fillRoundedRect(x - 50, py - 30, 100, 60, 8);
-            g.lineStyle(2, 0x004E89, 1); g.strokeRoundedRect(x - 50, py - 30, 100, 60, 8);
-            // Corner bolts
-            const boltPositions = [
-                [x - 44, py - 24], [x + 44, py - 24],
-                [x - 44, py + 24], [x + 44, py + 24]
-            ];
-            for (const [bx, by] of boltPositions) {
-                g.fillStyle(0xFFD700, 1); g.fillCircle(bx, by, 3);
-            }
-            this.add.text(x, py - 8, PROC_DATA[i].emoji, { fontSize: '22px' }).setOrigin(0.5).setDepth(2);
-            this.add.text(x, py + 18, PROC_DATA[i].name, {
-                fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#FFFFFF'
+            const px = previewPositions[i].x;
+            const py = previewPositions[i].y;
+            // Small workstation
+            previewGfx.fillStyle(0xB8D4E3, 1);
+            previewGfx.fillRect(px - 30, py + 18, 60, 8);
+            previewGfx.fillStyle(0x666666, 1);
+            previewGfx.fillRect(px - 30, py + 26, 60, 2);
+            // Small worker
+            drawWorker(previewGfx, px, py, WORKER_SHIRTS[i], WORKER_SKINS[i], WORKER_HAIR[i], 0, 0);
+            // Name
+            this.add.text(px, py + 38, PROC_DATA[i].name, {
+                fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
             }).setOrigin(0.5).setDepth(2);
-            if (i < 4) {
-                // Mini conveyor between previews
-                const ax = x + 50;
-                const bx2 = x + 90;
-                const cg = this.add.graphics().setDepth(1);
-                cg.fillStyle(0xC0C0C0, 1); cg.fillRect(ax, py - 5, 40, 10);
-                cg.fillStyle(0xFF6B35, 1);
-                cg.fillTriangle(bx2, py, bx2 - 8, py - 5, bx2 - 8, py + 5);
-            }
         }
 
-        // Rules on semi-transparent white panel
+        // Rules panel
         const rulesPanel = this.add.graphics().setDepth(1);
         rulesPanel.fillStyle(0xFFFFFF, 0.5);
-        rulesPanel.fillRoundedRect(W / 2 - 310, 235, 620, 150, 12);
+        rulesPanel.fillRoundedRect(W / 2 - 270, 380, 540, 190, 12);
 
         const rules = [
-            '\u{1F3E5}  Click en PROCESOS para restaurar su salud',
+            '\u{1F3E5}  Click en ESTACIONES para restaurar su salud',
             '\u{1FA99}  Cada cliente exitoso = coins para la tienda',
             '\u{1F525}  Combo: clientes sin perder = multiplicador de coins',
             '\u{1F6D2}  Compra mejoras entre dias para sobrevivir',
@@ -272,27 +312,27 @@ class MenuScene extends Phaser.Scene {
             '',
             '8 dias  \u2022  90s cada uno  \u2022  Dificultad creciente  \u2022  ~15 min total',
         ];
-        this.add.text(W / 2, 310, rules.join('\n'), {
+        this.add.text(W / 2, 475, rules.join('\n'), {
             fontSize: '13px', fontFamily: 'Arial, sans-serif',
             color: '#333333', align: 'center', lineSpacing: 7
         }).setOrigin(0.5).setDepth(2);
 
-        // Flywheel banner — wooden panel
+        // Flywheel banner
         const fg = this.add.graphics().setDepth(1);
-        fg.fillStyle(0x8B4513, 1); fg.fillRoundedRect(W / 2 - 290, 420, 580, 34, 8);
-        fg.lineStyle(1, 0x654321, 1); fg.strokeRoundedRect(W / 2 - 290, 420, 580, 34, 8);
-        this.add.text(W / 2, 437, '\u{1F504}  Mas exitos \u2192 Menor riesgo \u2192 Mejor tasa \u2192 Mas acceso \u2192 Loop', {
+        fg.fillStyle(0x8B4513, 1); fg.fillRoundedRect(W / 2 - 270, 600, 540, 34, 8);
+        fg.lineStyle(1, 0x654321, 1); fg.strokeRoundedRect(W / 2 - 270, 600, 540, 34, 8);
+        this.add.text(W / 2, 617, '\u{1F504}  Mas exitos \u2192 Menor riesgo \u2192 Mejor tasa \u2192 Mas acceso \u2192 Loop', {
             fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#FFD700', fontStyle: 'italic'
         }).setOrigin(0.5).setDepth(2);
 
-        this.makeBtn(W / 2, 505, 'JUGAR', () => {
-            this.cameras.main.fadeOut(300, 0x87, 0xCE, 0xEB);
+        this.makeBtn(W / 2, 700, 'JUGAR', () => {
+            this.cameras.main.fadeOut(300, 0xC4, 0x95, 0x6A);
             this.time.delayedCall(300, () => {
                 this.scene.start('GameScene', { gameState: freshGameState() });
             });
         });
-        this.add.text(W / 2, 590, 'Un juego de empatia operativa — Duppla 2026', {
-            fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#555555'
+        this.add.text(W / 2, 800, 'Un juego de empatia operativa — Duppla 2026', {
+            fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#8B6847'
         }).setOrigin(0.5).setDepth(2);
     }
 
@@ -348,14 +388,12 @@ class GameScene extends Phaser.Scene {
         this.healDebuffTimer = 0;
         this.healRateMult = 1;
 
-        this.charX = CHAR_HOME.x; this.charY = CHAR_HOME.y;
-        this.charTX = CHAR_HOME.x; this.charTY = CHAR_HOME.y;
-
         this.eventPaused = false;
         this.roundStarted = false;
         this.ended = false;
 
         this.prevComboTier = getComboTier(0);
+        this.bossFaceRedTimer = 0;
 
         // Round boosts (in-game projects)
         this.investing = -1;
@@ -389,11 +427,10 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
-        this.cameras.main.fadeIn(400, 0x87, 0xCE, 0xEB);
+        this.cameras.main.fadeIn(400, 0xC4, 0x95, 0x6A);
 
-        // Sky gradient background
-        drawSkyGradient(this);
-        this.clouds = createClouds(this);
+        // Wood background
+        drawWoodBackground(this);
 
         // Red vignette overlay for client loss
         this.vignetteGfx = this.add.graphics().setDepth(85).setAlpha(0);
@@ -403,9 +440,9 @@ class GameScene extends Phaser.Scene {
         this.goldenTint = this.add.rectangle(W / 2, H / 2, W, H, 0xffd700, 0).setDepth(1);
 
         this.createHUD();
+        this.createBoss();
         this.createPipeline();
         this.createBoostPanel();
-        this.createCharacter();
         this.createEventOverlay();
         this.createRoundStartOverlay();
     }
@@ -424,73 +461,68 @@ class GameScene extends Phaser.Scene {
         g.fillRect(W - 60, 0, 60, H);
     }
 
-    // ---- HUD (Wood Panel) ----
+    // ---- HUD (Top bar) ----
     createHUD() {
         const hud = this.add.graphics().setDepth(40);
-        // Wooden panel background
-        hud.fillStyle(0x8B4513, 1); hud.fillRect(0, 0, W, 55);
-        hud.lineStyle(2, 0x654321, 1); hud.lineBetween(0, 55, W, 55);
+        // Dark brown bar
+        hud.fillStyle(0x654321, 1); hud.fillRect(0, 0, W, 60);
+        hud.lineStyle(2, 0x8B4513, 1); hud.lineBetween(0, 60, W, 60);
 
-        // HUD stat background plaques (tan)
+        // Stat background pills
         const hudPills = this.add.graphics().setDepth(40);
         const pillPositions = [
-            { x: 65, w: 100 },   // Timer
-            { x: 200, w: 110 },  // Coins
-            { x: 360, w: 100 },  // Exitosos
-            { x: 500, w: 100 },  // Perdidos
-            { x: 640, w: 100 },  // Combo
+            { x: 60, w: 100 },   // Timer
+            { x: 180, w: 100 },  // Coins
+            { x: 310, w: 90 },   // Score
+            { x: 420, w: 90 },   // Combo
+            { x: 555, w: 100 },  // Dia
         ];
         pillPositions.forEach(p => {
-            hudPills.fillStyle(0xD2B48C, 1);
-            hudPills.fillRoundedRect(p.x - p.w / 2, 5, p.w, 45, 8);
-            hudPills.lineStyle(1, 0x654321, 1);
-            hudPills.strokeRoundedRect(p.x - p.w / 2, 5, p.w, 45, 8);
+            hudPills.fillStyle(0x8B6847, 0.6);
+            hudPills.fillRoundedRect(p.x - p.w / 2, 5, p.w, 50, 8);
         });
 
-        const mkL = (x, t) => this.add.text(x, 11, t, {
-            fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#654321', letterSpacing: 1
+        const mkL = (x, t) => this.add.text(x, 10, t, {
+            fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#C4956A', letterSpacing: 1
         }).setOrigin(0.5).setDepth(41);
 
-        mkL(65, 'TIEMPO');
-        this.timerTxt = this.add.text(65, 35, fmtTime(ROUND_TIME), {
-            fontSize: '22px', fontFamily: 'monospace', color: '#1a1a1a', fontStyle: 'bold'
+        mkL(60, 'TIEMPO');
+        this.timerTxt = this.add.text(60, 36, fmtTime(ROUND_TIME), {
+            fontSize: '20px', fontFamily: 'monospace', color: '#FFFFFF', fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(41);
 
-        mkL(200, 'COINS');
-        // Coin glow
-        this.coinGlow = this.add.circle(200, 35, 30, 0xffd700, 0).setDepth(40);
-        this.tweens.add({ targets: this.coinGlow, alpha: 0.15, duration: 1200, yoyo: true, repeat: -1 });
-
-        this.coinsTxt = this.add.text(200, 35, '\u{1FA99} ' + this.gs.coins, {
-            fontSize: '18px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#8B4513', fontStyle: 'bold'
+        mkL(180, 'COINS');
+        this.coinsTxt = this.add.text(180, 36, '\u{1FA99} ' + this.gs.coins, {
+            fontSize: '16px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(41);
 
-        mkL(360, 'EXITOSOS');
-        this.scoreTxt = this.add.text(360, 35, '0', {
-            fontSize: '22px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#228B22', fontStyle: 'bold'
+        mkL(310, 'EXITOSOS');
+        this.scoreTxt = this.add.text(310, 36, '0', {
+            fontSize: '20px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#4CAF50', fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(41);
 
-        mkL(500, 'PERDIDOS');
-        this.lostTxt = this.add.text(500, 35, '0', {
-            fontSize: '22px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#CC0000', fontStyle: 'bold'
+        mkL(420, 'COMBO');
+        this.comboTxt = this.add.text(420, 36, 'x1', {
+            fontSize: '18px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFFFFF', fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(41);
 
-        mkL(640, 'COMBO');
-        this.comboTxt = this.add.text(640, 35, 'x1', {
-            fontSize: '20px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(41);
-
-        // Combo meter bar background
+        // Combo meter bar
         this.comboBarGfx = this.add.graphics().setDepth(41);
 
-        this.roundTxt = this.add.text(820, 28, 'DIA ' + this.round + '/' + TOTAL_ROUNDS, {
-            fontSize: '14px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
-            stroke: '#654321', strokeThickness: 2
+        this.roundTxt = this.add.text(555, 30, 'DIA ' + this.round + '/' + TOTAL_ROUNDS, {
+            fontSize: '16px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(41);
 
-        this.statusTxt = this.add.text(W - 20, 28, '', {
+        this.lostTxt = this.add.text(625, 30, '0', {
+            fontSize: '14px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FF4444', fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(41);
+        this.add.text(625, 12, 'PERDIDOS', {
+            fontSize: '7px', fontFamily: 'Arial, sans-serif', color: '#C4956A'
+        }).setOrigin(0.5).setDepth(41);
+
+        this.statusTxt = this.add.text(W / 2, 73, '', {
             fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#654321', fontStyle: 'italic'
-        }).setOrigin(1, 0.5).setDepth(41);
+        }).setOrigin(0.5).setDepth(30);
 
         // Heal debuff
         this.healDebuffTxt = this.add.text(W / 2, H - 15, '', {
@@ -499,18 +531,67 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(30).setVisible(false);
     }
 
-    // ---- Pipeline ----
-    createPipeline() {
-        this.add.text(25, 63, 'PIPELINE DE CLIENTES \u2014 DIA ' + this.round, {
-            fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#555555', letterSpacing: 1
-        }).setDepth(5);
+    // ---- Boss area ----
+    createBoss() {
+        this.bossGfx = this.add.graphics().setDepth(10);
+        // Desk drawn in drawBossArea
+        this.bossSparkles = [];
+    }
 
+    drawBossArea() {
+        const g = this.bossGfx;
+        g.clear();
+        const bx = 320, by = 120;
+        // Desk
+        g.fillStyle(0x8B4513, 1);
+        g.fillRect(bx - 100, by + 28, 200, 20);
+        g.fillStyle(0x654321, 1);
+        g.fillRect(bx - 100, by + 48, 200, 4);
+        // Desk legs
+        g.fillStyle(0x654321, 1);
+        g.fillRect(bx - 95, by + 48, 8, 16);
+        g.fillRect(bx + 87, by + 48, 8, 16);
+
+        const time = this.time.now;
+        const armOff = Math.sin(time / 500) * 2;
+        const comboHigh = this.combo >= 8;
+        const faceRed = this.bossFaceRedTimer > 0;
+
+        drawBoss(g, bx, by, armOff, comboHigh, faceRed);
+
+        // Boss sparkle effects when combo high
+        if (comboHigh) {
+            for (let i = 0; i < 3; i++) {
+                const angle = (time / 300 + i * 2.1) % (Math.PI * 2);
+                const sx = bx + Math.cos(angle) * 35;
+                const sy = by - 20 + Math.sin(angle * 1.3) * 20;
+                const sparkleAlpha = (Math.sin(time / 200 + i) + 1) * 0.3;
+                g.fillStyle(0xFFD700, sparkleAlpha);
+                g.fillRect(sx - 2, sy - 2, 4, 4);
+                g.fillRect(sx - 1, sy - 4, 2, 8);
+                g.fillRect(sx - 4, sy - 1, 8, 2);
+            }
+        }
+
+        // Items on desk
+        g.fillStyle(0x333333, 1);
+        g.fillRect(bx - 60, by + 20, 20, 10); // laptop base
+        g.fillStyle(0x4488CC, 1);
+        g.fillRect(bx - 58, by + 6, 16, 14); // laptop screen
+        // Coffee mug
+        g.fillStyle(0xFFFFFF, 1);
+        g.fillRect(bx + 40, by + 18, 10, 12);
+        g.fillStyle(0x8B4513, 1);
+        g.fillRect(bx + 42, by + 20, 6, 4);
+    }
+
+    // ---- Pipeline (stations grid) ----
+    createPipeline() {
         this.stGfx = []; this.stCount = []; this.stStatus = [];
         this.stGlow = [];
-        this.arrowGfx = this.add.graphics().setDepth(3);
 
         for (let i = 0; i < 5; i++) {
-            const x = PROC_X[i];
+            const pos = PROC_POS[i];
 
             // Glow graphics per station
             const glowGfx = this.add.graphics().setDepth(4);
@@ -519,38 +600,31 @@ class GameScene extends Phaser.Scene {
             const gfx = this.add.graphics().setDepth(5);
             this.stGfx.push(gfx);
 
-            this.add.text(x, PROC_Y - 42, PROC_DATA[i].emoji, { fontSize: '28px' }).setOrigin(0.5).setDepth(10);
-            this.add.text(x, PROC_Y - 8, PROC_DATA[i].name, {
-                fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#FFFFFF', fontStyle: 'bold',
-                stroke: '#004E89', strokeThickness: 2
-            }).setOrigin(0.5).setDepth(10);
-
-            const cnt = this.add.text(x + PROC_W / 2 - 14, PROC_Y - PROC_H / 2 + 14, '', {
+            const cnt = this.add.text(pos.x + PROC_W / 2 - 14, pos.y - PROC_H / 2 + 14, '', {
                 fontSize: '14px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#fff', fontStyle: 'bold'
             }).setOrigin(0.5).setDepth(15);
             this.stCount.push(cnt);
 
-            const sts = this.add.text(x, PROC_Y + 68, '', {
+            const sts = this.add.text(pos.x, pos.y + 68, '', {
                 fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#ff4444', fontStyle: 'bold',
                 stroke: '#000000', strokeThickness: 2
             }).setOrigin(0.5).setDepth(15);
             this.stStatus.push(sts);
 
-            const zone = this.add.zone(x, PROC_Y, PROC_W + 12, PROC_H + 12)
+            const zone = this.add.zone(pos.x, pos.y, PROC_W + 12, PROC_H + 12)
                 .setInteractive({ useHandCursor: true }).setDepth(25);
             zone.on('pointerdown', () => this.clickProcess(i));
         }
 
-        // Arrival & exit indicators
-        this.arrivalTxt = this.add.text(PROC_X[0] - PROC_W / 2 - 28, PROC_Y, '\u{1F464}\u2192', { fontSize: '16px' }).setOrigin(0.5).setDepth(10);
-        this.add.text(PROC_X[4] + PROC_W / 2 + 28, PROC_Y, '\u2192\u2705', { fontSize: '16px' }).setOrigin(0.5).setDepth(10);
+        // Arrival indicator
+        this.arrivalTxt = this.add.text(PROC_POS[0].x - PROC_W / 2 - 20, PROC_POS[0].y, '\u{1F464}\u2192', { fontSize: '14px' }).setOrigin(0.5).setDepth(10);
     }
 
     // ---- Boost panel (in-round projects) ----
     createBoostPanel() {
         // Label
-        this.add.text(W / 2, BOOST_Y - 50, 'PROYECTOS — Invierte tiempo para boosts (dejas de atender!)', {
-            fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a', letterSpacing: 1
+        this.add.text(W / 2, BOOST_Y - 35, 'PROYECTOS', {
+            fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#654321', letterSpacing: 2, fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(5);
 
         this.boostGfx = [];
@@ -563,16 +637,16 @@ class GameScene extends Phaser.Scene {
             const gfx = this.add.graphics().setDepth(5);
             this.boostGfx.push(gfx);
 
-            this.add.text(x, BOOST_Y - 18, data.emoji, { fontSize: '20px' }).setOrigin(0.5).setDepth(10);
-            this.add.text(x, BOOST_Y + 2, data.name, {
+            this.add.text(x, BOOST_Y - 14, data.emoji, { fontSize: '18px' }).setOrigin(0.5).setDepth(10);
+            this.add.text(x, BOOST_Y + 4, data.name, {
                 fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
             }).setOrigin(0.5).setDepth(10);
-            this.add.text(x, BOOST_Y + 17, data.investTime + 's', {
+            this.add.text(x, BOOST_Y + 18, data.investTime + 's', {
                 fontSize: '8px', fontFamily: 'Arial, sans-serif', color: '#666666'
             }).setOrigin(0.5).setDepth(10);
 
-            const doneTxt = this.add.text(x, BOOST_Y - 2, '\u2705', {
-                fontSize: '28px'
+            const doneTxt = this.add.text(x, BOOST_Y, '\u2705', {
+                fontSize: '24px'
             }).setOrigin(0.5).setDepth(20).setVisible(false);
             this.boostDoneTxt.push(doneTxt);
 
@@ -580,11 +654,6 @@ class GameScene extends Phaser.Scene {
                 .setInteractive({ useHandCursor: true }).setDepth(25);
             zone.on('pointerdown', () => this.clickBoost(j));
         }
-    }
-
-    createCharacter() {
-        this.charGfx = this.add.graphics().setDepth(30);
-        this.charEmoji = this.add.text(this.charX, this.charY, '\u{1F477}', { fontSize: '28px' }).setOrigin(0.5).setDepth(31);
     }
 
     // ---- Event overlay ----
@@ -597,11 +666,10 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(92).setVisible(false);
         this.evtBody = this.add.text(W / 2, 0, '', {
             fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#333333',
-            align: 'center', wordWrap: { width: 400 }
+            align: 'center', wordWrap: { width: 360 }
         }).setOrigin(0.5).setDepth(92).setVisible(false);
         this.evtBtnA = null; this.evtBtnB = null;
         this.evtTimeout = 0;
-        // For pulsing border
         this.evtBorderGfx = this.add.graphics().setDepth(91);
     }
 
@@ -611,28 +679,26 @@ class GameScene extends Phaser.Scene {
         const ovl = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.85).setDepth(95).setInteractive();
         this.rsElements.push(ovl);
 
-        // Container for scale animation — cork bulletin board style
         const container = this.add.container(W / 2, H / 2).setDepth(96);
         container.setScale(0.8);
         container.setAlpha(0);
         this.rsElements.push(container);
 
-        // Cork board background
+        // Brown panel
         const g = this.add.graphics();
-        g.fillStyle(0x8B4513, 1); g.fillRoundedRect(-260, -100, 520, 200, 16);
-        g.lineStyle(3, 0x654321, 1); g.strokeRoundedRect(-260, -100, 520, 200, 16);
+        g.fillStyle(0x8B4513, 1); g.fillRoundedRect(-240, -100, 480, 200, 16);
+        g.lineStyle(3, 0x654321, 1); g.strokeRoundedRect(-240, -100, 480, 200, 16);
         container.add(g);
 
         // Golden pin circles at corners
         const pins = this.add.graphics();
-        const pinPositions = [[-248, -88], [248, -88], [-248, 88], [248, 88]];
+        const pinPositions = [[-228, -88], [228, -88], [-228, 88], [228, 88]];
         for (const [px, py] of pinPositions) {
             pins.fillStyle(0xFFD700, 1); pins.fillCircle(px, py, 6);
             pins.fillStyle(0xDAA520, 1); pins.fillCircle(px, py, 3);
         }
         container.add(pins);
 
-        // Large, dramatic day number — golden with black stroke
         const t1 = this.add.text(0, -55, 'DIA ' + this.round, {
             fontSize: '52px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
             stroke: '#1a1a1a', strokeThickness: 4
@@ -645,7 +711,6 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5);
         container.add(t2);
 
-        // Show upgrades active for this round
         const activeUpgrades = Object.keys(this.gs.upgrades).length;
         if (activeUpgrades > 0) {
             const upEmojis = UPGRADES.filter(u => this.gs.upgrades[u.id]).map(u => u.emoji).join(' ');
@@ -660,13 +725,13 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5);
         container.add(t4);
 
-        // Fade in with scale animation
         this.tweens.add({
             targets: container, scaleX: 1, scaleY: 1, alpha: 1,
             duration: 400, ease: 'Back.easeOut'
         });
 
-        ovl.on('pointerdown', () => {
+        const dismissRound = () => {
+            if (this.roundStarted) return;
             this.roundStarted = true;
             this.tweens.add({
                 targets: container, scaleX: 1.1, scaleY: 1.1, alpha: 0,
@@ -679,32 +744,34 @@ class GameScene extends Phaser.Scene {
                     this.rsElements = [];
                 }
             });
-        });
+        };
+
+        // Click to start
+        ovl.on('pointerdown', dismissRound);
+        this.time.delayedCall(600, () => this.input.once('pointerdown', dismissRound));
+        // Native JS fallback for headless environments
+        setTimeout(() => dismissRound(), 4000);
     }
 
     // ---- Interaction ----
     clickProcess(i) {
         if (this.eventPaused || !this.roundStarted) return;
         if (this.procs[i].frozen) {
-            this.floatText(PROC_X[i], PROC_Y - 80, '\u2744\uFE0F CONGELADO', '#29b6f6');
+            this.floatText(PROC_POS[i].x, PROC_POS[i].y - 80, '\u2744\uFE0F CONGELADO', '#29b6f6');
             return;
         }
         this.attending = i;
         this.investing = -1;
-        this.charTX = PROC_X[i]; this.charTY = PROC_Y + 95;
-        this.charEmoji.setText('\u{1F527}');
     }
 
     clickBoost(j) {
         if (this.eventPaused || !this.roundStarted) return;
         if (this.boostState[j].done) {
-            this.floatText(BOOST_X[j], BOOST_Y - 45, '\u2705 ACTIVO', '#4caf50');
+            this.floatText(BOOST_X[j], BOOST_Y - 35, '\u2705 ACTIVO', '#4caf50');
             return;
         }
         this.investing = j;
         this.attending = -1;
-        this.charTX = BOOST_X[j]; this.charTY = BOOST_Y - 50;
-        this.charEmoji.setText('\u{1F477}');
     }
 
     completeBoost(j) {
@@ -716,12 +783,10 @@ class GameScene extends Phaser.Scene {
         if (j === 1) this.boostSpeedMult = 0.6;     // Reporte: speed +50% (0.6x time)
         if (j === 2) this.boostDecayMult = 0.5;     // Coordinacion: decay -50%
 
-        this.floatText(BOOST_X[j], BOOST_Y - 45, '\u2705 ' + ROUND_BOOSTS[j].name + '!', '#4caf50');
+        this.floatText(BOOST_X[j], BOOST_Y - 35, '\u2705 ' + ROUND_BOOSTS[j].name + '!', '#4caf50');
         this.cameras.main.flash(200, 76, 175, 80, false);
 
         this.investing = -1;
-        this.charTX = CHAR_HOME.x; this.charTY = CHAR_HOME.y;
-        this.charEmoji.setText('\u{1F477}');
     }
 
     // ---- Game logic helpers ----
@@ -763,11 +828,9 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    // Bounce animation on queue dot
     bounceQueueDot(procIdx) {
-        const x = PROC_X[procIdx];
-        const dotY = PROC_Y + 44;
-        const bounce = this.add.rectangle(x, dotY, 10, 10, 0xFF6B35, 0.5).setDepth(16);
+        const pos = PROC_POS[procIdx];
+        const bounce = this.add.rectangle(pos.x, pos.y + 44, 10, 10, 0xFF6B35, 0.5).setDepth(16);
         this.tweens.add({
             targets: bounce, scaleX: 1.5, scaleY: 1.5, alpha: 0, duration: 300, ease: 'Power2',
             onComplete: () => bounce.destroy()
@@ -777,7 +840,7 @@ class GameScene extends Phaser.Scene {
     freezeProc(idx, dur) {
         this.procs[idx].frozen = true;
         this.procs[idx].frozenTimer = dur;
-        if (this.attending === idx) { this.attending = -1; this.charTX = CHAR_HOME.x; this.charTY = CHAR_HOME.y; }
+        if (this.attending === idx) { this.attending = -1; }
         this.flashStation(idx);
     }
 
@@ -809,7 +872,6 @@ class GameScene extends Phaser.Scene {
         else if (p.health > 25) hf = 0.5 + (p.health - 25) / 50;
         else hf = 0;
 
-        // Full auto processes work at 60% when unattended
         const autoBoost = (p.isFullAuto && this.attending !== i) ? 0.6 : 0;
         const attendBoost = (this.attending === i) ? 1.3 : 0;
         const speed = Math.max(attendBoost, autoBoost);
@@ -834,7 +896,7 @@ class GameScene extends Phaser.Scene {
             }
         }
 
-        // Client aging — urgentes age faster
+        // Client aging
         for (let j = p.queue.length - 1; j >= 0; j--) {
             p.queue[j].age += dt * CLIENT_TYPES[p.queue[j].type].ageMult;
             if (p.queue[j].age >= CLIENT_EXPIRY) {
@@ -865,12 +927,10 @@ class GameScene extends Phaser.Scene {
         this.combo++;
         this.maxCombo = Math.max(this.maxCombo, this.combo);
         this.exitAnim(type);
-        this.floatText(PROC_X[4], PROC_Y - 80, '\u26A1 +' + coins + '\u{1FA99}', '#228B22');
+        this.floatText(PROC_POS[4].x, PROC_POS[4].y - 80, '\u26A1 +' + coins + '\u{1FA99}', '#228B22');
 
-        // Confetti burst on client success (squares)
         this.successParticleBurst(type);
 
-        // Combo tier change
         const newTier = getComboTier(this.combo);
         if (newTier.mult > tier.mult) {
             this.cameras.main.flash(150, 255, 200, 50, false);
@@ -881,10 +941,10 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    // Confetti burst — colored SQUARES
     successParticleBurst(type) {
-        const exitX = PROC_X[4] + PROC_W / 2 + 10;
-        const exitY = PROC_Y;
+        const pos = PROC_POS[4];
+        const exitX = pos.x + PROC_W / 2 + 10;
+        const exitY = pos.y;
         const confettiColors = [0xFF6B35, 0xFFD700, 0x32CD32, 0x1F77B4, 0xFF4444, 0x00CED1];
         const count = Phaser.Math.Between(10, 16);
         for (let i = 0; i < count; i++) {
@@ -913,13 +973,17 @@ class GameScene extends Phaser.Scene {
             this.combo = 0;
             this.cameras.main.flash(150, 200, 50, 50, false);
         }
-        this.floatText(PROC_X[procIdx], PROC_Y - 80, '\u{1F480} -1', '#CC0000');
+        this.floatText(PROC_POS[procIdx].x, PROC_POS[procIdx].y - 80, '\u{1F480} -1', '#CC0000');
+
+        // Boss face turns red briefly
+        this.bossFaceRedTimer = 0.5;
 
         // Orange sparks on loss
+        const pos = PROC_POS[procIdx];
         for (let i = 0; i < 6; i++) {
             const spark = this.add.rectangle(
-                PROC_X[procIdx] + Phaser.Math.Between(-20, 20),
-                PROC_Y + Phaser.Math.Between(-20, 20),
+                pos.x + Phaser.Math.Between(-20, 20),
+                pos.y + Phaser.Math.Between(-20, 20),
                 3, 3, 0xFF6B35, 1
             ).setDepth(50);
             this.tweens.add({
@@ -936,7 +1000,6 @@ class GameScene extends Phaser.Scene {
         this.tweens.add({
             targets: this.vignetteGfx, alpha: 0, duration: 400, ease: 'Power2'
         });
-        // Screen shake
         this.cameras.main.shake(200, 0.004);
     }
 
@@ -955,29 +1018,26 @@ class GameScene extends Phaser.Scene {
         this.evtOvl.setVisible(true).setAlpha(0);
         this.tweens.add({ targets: this.evtOvl, alpha: 0.7, duration: 200 });
 
-        // Red glow behind overlay
+        // Red glow behind
         this.evtGlowGfx.clear();
         this.evtGlowGfx.fillStyle(0xff0000, 0.15);
-        this.evtGlowGfx.fillRoundedRect(W / 2 - 270, H / 2 - 130, 540, 260, 24);
+        this.evtGlowGfx.fillRoundedRect(W / 2 - 230, H / 2 - 130, 460, 260, 24);
         this.evtGlowGfx.fillStyle(0xff0000, 0.08);
-        this.evtGlowGfx.fillRoundedRect(W / 2 - 285, H / 2 - 145, 570, 290, 30);
+        this.evtGlowGfx.fillRoundedRect(W / 2 - 245, H / 2 - 145, 490, 290, 30);
         this.evtGlowGfx.setAlpha(0);
         this.tweens.add({ targets: this.evtGlowGfx, alpha: 1, duration: 300 });
 
-        // Yellow warning card background
+        // Yellow warning card
         this.evtGfx.clear();
-        this.evtGfx.fillStyle(0xFFD700, 1); this.evtGfx.fillRoundedRect(W / 2 - 250, H / 2 - 110, 500, 220, 16);
-        // Red border — static initial draw
+        this.evtGfx.fillStyle(0xFFD700, 1); this.evtGfx.fillRoundedRect(W / 2 - 210, H / 2 - 110, 420, 220, 16);
         this.evtBorderGfx.clear();
-        this.evtBorderGfx.lineStyle(4, 0xFF0000, 1); this.evtBorderGfx.strokeRoundedRect(W / 2 - 250, H / 2 - 110, 500, 220, 16);
-        // Pulse the border alpha
+        this.evtBorderGfx.lineStyle(4, 0xFF0000, 1); this.evtBorderGfx.strokeRoundedRect(W / 2 - 210, H / 2 - 110, 420, 220, 16);
         this.evtBorderGfx.setAlpha(1);
         this.tweens.add({
             targets: this.evtBorderGfx, alpha: 0.4, duration: 400,
             yoyo: true, repeat: -1
         });
 
-        // Title with alarm emoji
         this.evtTitle.setText('\u{1F6A8} ' + evt.title).setPosition(W / 2, H / 2 - 180).setVisible(true).setAlpha(0);
         this.evtTitle.setColor('#1a1a1a');
         this.evtBody.setText(evt.text).setPosition(W / 2, H / 2 - 140).setVisible(true).setAlpha(0);
@@ -992,16 +1052,15 @@ class GameScene extends Phaser.Scene {
             y: H / 2 - 30, alpha: 1, duration: 300, ease: 'Back.easeOut', delay: 50
         });
 
-        // Option buttons
         const canAffordB = evt.optB.cost === undefined || evt.optB.cost === 0 || this.gs.coins >= evt.optB.cost;
 
-        this.evtBtnA = this.makeEvtBtn(W / 2 - 120, H / 2 + 40, evt.optA.label, evt.optA.desc, true, 'green', () => {
+        this.evtBtnA = this.makeEvtBtn(W / 2 - 100, H / 2 + 40, evt.optA.label, evt.optA.desc, true, 'green', () => {
             evt.optA.apply(this);
             this.dismissEvent();
         });
 
         const bDesc = evt.optB.cost ? evt.optB.desc + ' (\u{1F4B0}' + evt.optB.cost + ')' : evt.optB.desc;
-        this.evtBtnB = this.makeEvtBtn(W / 2 + 120, H / 2 + 40, evt.optB.label, bDesc, canAffordB, 'orange', () => {
+        this.evtBtnB = this.makeEvtBtn(W / 2 + 100, H / 2 + 40, evt.optB.label, bDesc, canAffordB, 'orange', () => {
             if (!canAffordB) return;
             if (evt.optB.cost) this.gs.coins -= evt.optB.cost;
             evt.optB.apply(this);
@@ -1022,8 +1081,8 @@ class GameScene extends Phaser.Scene {
         } else {
             bgColor = 0xFFA500; brdColor = 0xCC8400;
         }
-        g.fillStyle(bgColor, 1); g.fillRoundedRect(x - 100, y - 30, 200, 60, 8);
-        g.lineStyle(2, brdColor, 1); g.strokeRoundedRect(x - 100, y - 30, 200, 60, 8);
+        g.fillStyle(bgColor, 1); g.fillRoundedRect(x - 90, y - 30, 180, 60, 8);
+        g.lineStyle(2, brdColor, 1); g.strokeRoundedRect(x - 90, y - 30, 180, 60, 8);
         els.push(g);
         const t1 = this.add.text(x, y - 10, label, {
             fontSize: '14px', fontFamily: 'Arial Black, Arial, sans-serif',
@@ -1036,12 +1095,11 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(94);
         els.push(t2);
         if (enabled) {
-            const zone = this.add.zone(x, y, 200, 60).setInteractive({ useHandCursor: true }).setDepth(95);
+            const zone = this.add.zone(x, y, 180, 60).setInteractive({ useHandCursor: true }).setDepth(95);
             zone.on('pointerdown', fn);
             els.push(zone);
-            // Hover effect — lighten
             const hoverGfx = this.add.graphics().setDepth(93).setAlpha(0);
-            hoverGfx.fillStyle(0xFFFFFF, 0.25); hoverGfx.fillRoundedRect(x - 100, y - 30, 200, 60, 8);
+            hoverGfx.fillStyle(0xFFFFFF, 0.25); hoverGfx.fillRoundedRect(x - 90, y - 30, 180, 60, 8);
             els.push(hoverGfx);
             zone.on('pointerover', () => { hoverGfx.setAlpha(1); t1.setScale(1.05); t2.setScale(1.05); });
             zone.on('pointerout', () => { hoverGfx.setAlpha(0); t1.setScale(1); t2.setScale(1); });
@@ -1073,29 +1131,25 @@ class GameScene extends Phaser.Scene {
     }
 
     flashStation(idx) {
-        const fl = this.add.rectangle(PROC_X[idx], PROC_Y, PROC_W, PROC_H, 0xffffff, 0.25).setDepth(80);
+        const pos = PROC_POS[idx];
+        const fl = this.add.rectangle(pos.x, pos.y, PROC_W, PROC_H, 0xffffff, 0.25).setDepth(80);
         this.tweens.add({ targets: fl, alpha: 0, duration: 500, onComplete: () => fl.destroy() });
     }
 
     transferAnim(from, to, type) {
-        // Square product moves along conveyor belt path with bobbing
-        const sq = this.add.rectangle(PROC_X[from], PROC_Y + 22, 8, 8, CLIENT_TYPES[type].color).setDepth(50);
-        const startX = PROC_X[from];
-        const endX = PROC_X[to];
+        const fromPos = PROC_POS[from];
+        const toPos = PROC_POS[to];
+        const sq = this.add.rectangle(fromPos.x, fromPos.y + 22, 8, 8, CLIENT_TYPES[type].color).setDepth(50);
         this.tweens.add({
-            targets: sq, x: endX, duration: 250, ease: 'Power2',
-            onUpdate: () => {
-                // Sine wave bobbing on y
-                const progress = (sq.x - startX) / (endX - startX);
-                sq.y = PROC_Y + 22 + Math.sin(progress * Math.PI * 3) * 4;
-            },
+            targets: sq, x: toPos.x, y: toPos.y + 22, duration: 350, ease: 'Power2',
             onComplete: () => sq.destroy()
         });
     }
 
     exitAnim(type) {
-        const startX = PROC_X[4] + PROC_W / 2;
-        const startY = PROC_Y;
+        const pos = PROC_POS[4];
+        const startX = pos.x + PROC_W / 2;
+        const startY = pos.y;
         const sq = this.add.rectangle(startX, startY, 8, 8, CLIENT_TYPES[type].color).setDepth(50);
         this.tweens.add({
             targets: sq, x: W + 30, y: startY - 80, alpha: 0,
@@ -1105,184 +1159,137 @@ class GameScene extends Phaser.Scene {
     }
 
     drawStations() {
-        const hw = PROC_W / 2, hh = PROC_H / 2;
         const time = this.time.now;
 
-        // ---- CONVEYOR BELTS (replace arrows) ----
-        this.arrowGfx.clear();
-        for (let i = 0; i < 4; i++) {
-            const x1 = PROC_X[i] + hw + 4;
-            const x2 = PROC_X[i + 1] - hw - 4;
-            const beltY = PROC_Y - 9;
-            const beltH = 18;
-            const beltW = x2 - x1;
-
-            // Silver belt background
-            this.arrowGfx.fillStyle(0xC0C0C0, 1);
-            this.arrowGfx.fillRect(x1, beltY, beltW, beltH);
-
-            // Animated diagonal stripes (clipped to belt area)
-            const stripeW = 12;
-            const stripeOffset = (time / 20) % (stripeW * 2);
-            const colors = [0xFF6B35, 0x004E89];
-            for (let sx = -stripeW * 2; sx < beltW + stripeW * 2; sx += stripeW) {
-                const cx = sx + stripeOffset;
-                if (cx + stripeW < 0 || cx > beltW) continue;
-                const colorIdx = Math.floor((sx + stripeW * 100) / stripeW) % 2;
-                this.arrowGfx.fillStyle(colors[colorIdx], 0.6);
-                // Draw parallelogram as triangle pair for diagonal effect
-                const skew = 6;
-                const lx = x1 + Math.max(0, cx);
-                const rx = x1 + Math.min(beltW, cx + stripeW);
-                if (rx <= lx) continue;
-                this.arrowGfx.fillRect(lx, beltY + 2, rx - lx, beltH - 4);
-            }
-
-            // Belt border
-            this.arrowGfx.lineStyle(1, 0x888888, 1);
-            this.arrowGfx.strokeRect(x1, beltY, beltW, beltH);
-
-            // Wheels at each end
-            this.arrowGfx.fillStyle(0x444444, 1);
-            this.arrowGfx.fillCircle(x1 + 2, PROC_Y, 8);
-            this.arrowGfx.fillCircle(x2 - 2, PROC_Y, 8);
-            // Wheel axle highlight
-            this.arrowGfx.fillStyle(0x666666, 1);
-            this.arrowGfx.fillCircle(x1 + 2, PROC_Y, 4);
-            this.arrowGfx.fillCircle(x2 - 2, PROC_Y, 4);
-        }
-
-        // ---- STATIONS (Cartoon Machines) ----
         for (let i = 0; i < 5; i++) {
             const g = this.stGfx[i];
             const p = this.procs[i];
-            const x = PROC_X[i];
+            const pos = PROC_POS[i];
+            const x = pos.x;
+            const y = pos.y;
+            const hw = PROC_W / 2, hh = PROC_H / 2;
             g.clear();
 
             const att = this.attending === i;
             const danger = p.health < 25 && !p.frozen;
 
-            // Machine body color based on state
-            let bg = 0x1F77B4, brd = 0x004E89, bw = 3;
-            if (p.frozen) { bg = 0x5DADE2; brd = 0x29b6f6; bw = 3; }
-            else if (danger) { bg = 0xC0392B; brd = 0xFF0000; bw = 3; }
-            else if (att) { bg = 0x27AE60; brd = 0x00FF7F; bw = 3; }
-            else if (p.health < 50) { bg = 0xE67E22; brd = 0xFFA500; bw = 3; }
-
-            // Auto indicator
-            if (p.isFullAuto) { brd = 0x9c27b0; bw = 3; }
-
-            // Station glow effect
+            // --- Station glow (selected = green highlight) ---
             const glowG = this.stGlow[i];
             glowG.clear();
-            let glowColor = 0x00FF7F;
-            let glowAlpha = 0.12;
-            if (p.frozen) {
-                glowColor = 0x29b6f6; glowAlpha = 0.15;
-            } else if (p.isFullAuto) {
-                glowColor = 0x9c27b0; glowAlpha = 0.15;
-            } else if (p.health < 30) {
-                glowColor = 0xFF0000;
-                glowAlpha = 0.1 + Math.sin(time / 200) * 0.1;
-            } else if (p.health <= 60) {
-                glowColor = 0xFFA500; glowAlpha = 0.1;
-            }
-            glowG.fillStyle(glowColor, glowAlpha * 0.4);
-            glowG.fillRoundedRect(x - hw - 8, PROC_Y - hh - 8, PROC_W + 16, PROC_H + 16, 16);
-            glowG.fillStyle(glowColor, glowAlpha * 0.7);
-            glowG.fillRoundedRect(x - hw - 4, PROC_Y - hh - 4, PROC_W + 8, PROC_H + 8, 14);
-
-            // Station "breathing" for attending station
-            let drawHW = hw, drawHH = hh, drawW = PROC_W, drawH = PROC_H;
             if (att) {
-                const breathe = Math.sin(time / 300) * 0.02;
-                const scale = 1 + breathe;
-                drawW = PROC_W * scale;
-                drawH = PROC_H * scale;
-                drawHW = drawW / 2;
-                drawHH = drawH / 2;
+                glowG.fillStyle(0x00FF7F, 0.2);
+                glowG.fillRoundedRect(x - hw - 6, y - hh - 6, PROC_W + 12, PROC_H + 12, 10);
+            } else if (danger) {
+                const pulseAlpha = 0.1 + Math.sin(time / 200) * 0.1;
+                glowG.lineStyle(3, 0xFF0000, pulseAlpha + 0.3);
+                glowG.strokeRoundedRect(x - hw - 4, y - hh - 4, PROC_W + 8, PROC_H + 8, 10);
+            } else if (p.frozen) {
+                glowG.fillStyle(0x29b6f6, 0.15);
+                glowG.fillRoundedRect(x - hw - 4, y - hh - 4, PROC_W + 8, PROC_H + 8, 10);
             }
 
-            // Machine body — rounded rect with thick border
-            g.fillStyle(bg, 1); g.fillRoundedRect(x - drawHW, PROC_Y - drawHH, drawW, drawH, 12);
-            g.lineStyle(bw, brd, 1); g.strokeRoundedRect(x - drawHW, PROC_Y - drawHH, drawW, drawH, 12);
+            // --- Workstation base (desk/conveyor) ---
+            const deskY = y + 28;
+            g.fillStyle(0xB8D4E3, 1);
+            g.fillRect(x - 60, deskY, 120, 16);
+            g.fillStyle(0x666666, 1);
+            g.fillRect(x - 60, deskY + 16, 120, 3);
 
-            // 4 golden bolt circles at corners
-            const boltR = 3;
-            const boltInset = 10;
-            const boltPositions = [
-                [x - drawHW + boltInset, PROC_Y - drawHH + boltInset],
-                [x + drawHW - boltInset, PROC_Y - drawHH + boltInset],
-                [x - drawHW + boltInset, PROC_Y + drawHH - boltInset],
-                [x + drawHW - boltInset, PROC_Y + drawHH - boltInset],
-            ];
-            for (const [bx, by] of boltPositions) {
-                g.fillStyle(0xFFD700, 1); g.fillCircle(bx, by, boltR);
-                g.lineStyle(1, 0xDAA520, 1); g.strokeCircle(bx, by, boltR);
+            // --- Worker character ---
+            const isProcessing = p.queue.length > 0 && p.health > 25 && !p.frozen;
+            let armOffset = 0;
+            let shakeX = 0;
+
+            if (att && isProcessing) {
+                // Fast arm animation when attended
+                armOffset = Math.sin(time / 150) * 6;
+            } else if (isProcessing) {
+                // Slow arm animation
+                armOffset = Math.sin(time / 300) * 4;
+            } else if (this.investing >= 0) {
+                // All workers stop when investing
+                armOffset = 0;
             }
 
-            // Rotating gears when processing (queue > 0 && health > 25)
-            if (p.queue.length > 0 && p.health > 25 && !p.frozen) {
-                const gearAngle = (time / 500) % (Math.PI * 2);
-                const gearX = x + drawHW - 6;
-                const gearY = PROC_Y;
-                const gearR = 8;
-                const teeth = 6;
-                g.lineStyle(2, 0xFFD700, 0.6);
-                for (let t = 0; t < teeth; t++) {
-                    const a = gearAngle + (t / teeth) * Math.PI * 2;
-                    const tx = gearX + Math.cos(a) * gearR;
-                    const ty = gearY + Math.sin(a) * gearR;
-                    g.fillStyle(0xFFD700, 0.5);
-                    g.fillCircle(tx, ty, 2);
-                }
-                g.fillStyle(0xDAA520, 0.4);
-                g.fillCircle(gearX, gearY, 4);
+            // Shake when low health
+            if (p.health < 25 && p.health > 0 && !p.frozen) {
+                shakeX = Math.sin(time / 50) * 2;
             }
 
-            // Health bar — Energy Tank style (bigger, gradient-like)
-            const bY = PROC_Y + 16, bW = PROC_W - 16, bH = 12;
-            // Tank background
-            g.fillStyle(0x333333, 1); g.fillRoundedRect(x - bW / 2, bY, bW, bH, 5);
-            g.lineStyle(1, 0x555555, 1); g.strokeRoundedRect(x - bW / 2, bY, bW, bH, 5);
+            // Frozen blue tint - draw worker slightly differently
+            if (p.frozen) {
+                // Blue-tinted worker
+                drawWorker(g, x, y - 4, 0x6699CC, 0xAABBDD, 0x556688, 0, 0);
+            } else {
+                drawWorker(g, x, y - 4, WORKER_SHIRTS[i], WORKER_SKINS[i], WORKER_HAIR[i], armOffset, shakeX);
+            }
+
+            // --- Vertical health bars (Make More style!) ---
+            const barW = 10, barH = 100;
+            const barX1 = x - hw + 2;
+            const barX2 = x + hw - 12;
+            const barTopY = y - hh + 10;
+
+            // Left bar
+            g.fillStyle(0x333333, 1);
+            g.fillRect(barX1, barTopY, barW, barH);
             if (p.health > 0) {
+                const fillH = barH * (p.health / 100);
                 g.fillStyle(hpColor(p.health), 1);
-                const fillW = bW * (p.health / 100);
-                g.fillRoundedRect(x - bW / 2, bY, fillW, bH, 5);
-                // Highlight shine on health bar
+                g.fillRect(barX1, barTopY + barH - fillH, barW, fillH);
+                // Highlight
                 g.fillStyle(0xFFFFFF, 0.2);
-                g.fillRoundedRect(x - bW / 2, bY, fillW, bH / 3, { tl: 5, tr: 5, bl: 0, br: 0 });
+                g.fillRect(barX1, barTopY + barH - fillH, barW / 3, fillH);
             }
+            g.lineStyle(1, 0x555555, 0.5);
+            g.strokeRect(barX1, barTopY, barW, barH);
 
-            // Auto-heal indicator
+            // Right bar
+            g.fillStyle(0x333333, 1);
+            g.fillRect(barX2, barTopY, barW, barH);
+            if (p.health > 0) {
+                const fillH = barH * (p.health / 100);
+                g.fillStyle(hpColor(p.health), 1);
+                g.fillRect(barX2, barTopY + barH - fillH, barW, fillH);
+                g.fillStyle(0xFFFFFF, 0.2);
+                g.fillRect(barX2, barTopY + barH - fillH, barW / 3, fillH);
+            }
+            g.lineStyle(1, 0x555555, 0.5);
+            g.strokeRect(barX2, barTopY, barW, barH);
+
+            // Auto-heal indicator on right bar
             if (p.autoHealRate > 0) {
-                g.fillStyle(0x00FF7F, 0.8); g.fillCircle(x + bW / 2 + 2, bY + bH / 2, 4);
+                g.fillStyle(0x00FF7F, 0.8); g.fillCircle(barX2 + barW / 2, barTopY - 6, 4);
             }
 
-            // Processing mini-bar
+            // --- Processing mini-bar ---
             if (p.health > 25 && p.queue.length > 0 && !p.frozen) {
-                const pW = bW * 0.6;
-                g.fillStyle(0x333333, 1); g.fillRect(x - pW / 2, bY + 16, pW, 3);
-                g.fillStyle(0xFF6B35, 1); g.fillRect(x - pW / 2, bY + 16, pW * Math.min(1, p.processProgress), 3);
+                const pW = 80;
+                g.fillStyle(0x333333, 1); g.fillRect(x - pW / 2, deskY + 22, pW, 3);
+                g.fillStyle(0xFF6B35, 1); g.fillRect(x - pW / 2, deskY + 22, pW * Math.min(1, p.processProgress), 3);
             }
 
-            // Client queue — small colored SQUARES (not circles)
+            // --- Client queue as small colored squares on desk ---
             if (p.queue.length > 0) {
-                const dotY = PROC_Y + 44;
                 const maxDots = Math.min(p.queue.length, 8);
-                const dotSpacing = 13;
+                const dotSpacing = 14;
                 const startX = x - ((maxDots - 1) * dotSpacing) / 2;
                 for (let j = 0; j < maxDots; j++) {
                     const c = p.queue[j];
                     g.fillStyle(CLIENT_TYPES[c.type].color, j === 0 ? 1 : 0.7);
                     const sqSize = j === 0 ? 10 : 8;
-                    g.fillRoundedRect(startX + j * dotSpacing - sqSize / 2, dotY - sqSize / 2, sqSize, sqSize, 2);
+                    g.fillRect(startX + j * dotSpacing - sqSize / 2, deskY + 3 - sqSize / 2, sqSize, sqSize);
                 }
             }
 
-            // Client count badge
+            // --- Process name below workstation ---
+            // Drawn as static text in create, but we need to draw it fresh
+            // Use the graphics object to add text-like label below
+            // (We'll use a dedicated text object approach below)
+
+            // --- Client count badge at top-right ---
             if (p.queue.length > 0) {
-                const cx = x + hw - 14, cy = PROC_Y - hh + 14;
+                const cx = x + hw - 14, cy = y - hh + 14;
                 g.fillStyle(p.queue.length >= 6 ? 0xFF0000 : 0xFF6B35, 1);
                 g.fillCircle(cx, cy, 12);
                 this.stCount[i].setText(String(p.queue.length)).setPosition(cx, cy).setVisible(true);
@@ -1290,13 +1297,25 @@ class GameScene extends Phaser.Scene {
                 this.stCount[i].setVisible(false);
             }
 
-            // Status text — bright colors on dark stroke for readability
+            // Status text
             if (p.frozen) this.stStatus[i].setText('\u2744\uFE0F CONGELADO ' + Math.ceil(p.frozenTimer) + 's').setColor('#29b6f6').setVisible(true);
             else if (p.isFullAuto) this.stStatus[i].setText('\u{1F916} AUTO').setColor('#9c27b0').setVisible(true);
             else if (p.health <= 0 && p.queue.length > 0) this.stStatus[i].setText('\u{1F480} MUERTO').setColor('#FF0000').setVisible(true);
             else if (p.health < 25) this.stStatus[i].setText('\u26A0\uFE0F PELIGRO').setColor('#FF4444').setVisible(true);
             else if (p.autoHealRate > 0 && this.attending !== i) this.stStatus[i].setText('\u{1F49A} auto-heal').setColor('#00FF7F').setVisible(true);
             else this.stStatus[i].setVisible(false);
+        }
+
+        // Draw station names (only once, but since we redraw every frame with graphics, use text objects)
+        if (!this._stationLabels) {
+            this._stationLabels = [];
+            for (let i = 0; i < 5; i++) {
+                const pos = PROC_POS[i];
+                const label = this.add.text(pos.x, pos.y + hh + 4, PROC_DATA[i].name, {
+                    fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
+                }).setOrigin(0.5).setDepth(10);
+                this._stationLabels.push(label);
+            }
         }
     }
 
@@ -1312,9 +1331,11 @@ class GameScene extends Phaser.Scene {
             const done = bs.done;
 
             let bg, brd, bw;
-            if (done) { bg = 0x32CD32; brd = 0x228B22; bw = 3; }
-            else if (inv) { bg = 0xFFA500; brd = 0xFF6B35; bw = 3; }
-            else { bg = 0xF5F5F5; brd = data.color; bw = 2; }
+            if (done) { bg = 0x4CAF50; brd = 0x228B22; bw = 3; }
+            else if (inv) { bg = 0xFF6B35; brd = 0xFF6B35; bw = 3; }
+            else {
+                bg = data.color; brd = 0x654321; bw = 2;
+            }
 
             const pw = BOOST_W / 2, ph = BOOST_H / 2;
             g.fillStyle(bg, 1); g.fillRoundedRect(x - pw, BOOST_Y - ph, BOOST_W, BOOST_H, 10);
@@ -1322,11 +1343,11 @@ class GameScene extends Phaser.Scene {
 
             // Progress bar
             if (!done) {
-                const barY = BOOST_Y + ph - 14, barW = BOOST_W - 12, barH = 6;
-                g.fillStyle(0xdddddd, 1); g.fillRoundedRect(x - barW / 2, barY, barW, barH, 2);
+                const barY = BOOST_Y + ph - 12, barW = BOOST_W - 16, barH = 5;
+                g.fillStyle(0x333333, 0.5); g.fillRoundedRect(x - barW / 2, barY, barW, barH, 2);
                 const ratio = bs.progress / data.investTime;
                 if (ratio > 0) {
-                    g.fillStyle(inv ? 0xFF6B35 : 0x999999, 1);
+                    g.fillStyle(inv ? 0xFFD700 : 0x999999, 1);
                     g.fillRoundedRect(x - barW / 2, barY, barW * ratio, barH, 2);
                 }
             }
@@ -1335,35 +1356,18 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    drawCharacter() {
-        const time = this.time.now;
-        this.charGfx.clear();
-
-        // Orange backdrop circle
-        this.charGfx.fillStyle(0xFF6B35, 0.6); this.charGfx.fillCircle(this.charX, this.charY, 22);
-        this.charGfx.lineStyle(2, 0xCC5500, 0.6); this.charGfx.strokeCircle(this.charX, this.charY, 22);
-
-        // Bounce vertically when moving
-        const dx = this.charTX - this.charX;
-        const dy = this.charTY - this.charY;
-        const isMoving = Math.sqrt(dx * dx + dy * dy) > 5;
-        let yOff = 0;
-        if (isMoving) {
-            yOff = Math.sin(time / 100) * 3;
-        }
-
-        // Change emoji when attending
-        const emoji = this.attending >= 0 ? '\u{1F527}' : '\u{1F477}';
-        this.charEmoji.setText(emoji);
-        this.charEmoji.setPosition(this.charX, this.charY + yOff);
-    }
-
     // ---- Main update ----
     update(_, delta) {
         delta = Math.min(delta, 100);
         const dt = delta / 1000;
 
-        if (!this.roundStarted) return;
+        // Boss face red timer
+        if (this.bossFaceRedTimer > 0) this.bossFaceRedTimer -= dt;
+
+        if (!this.roundStarted) {
+            this.drawBossArea();
+            return;
+        }
 
         // Event pause — processes STILL decay during events!
         if (this.eventPaused) {
@@ -1379,7 +1383,7 @@ class GameScene extends Phaser.Scene {
                 const pressure = (1 + p.queue.length * 0.12);
                 p.health = Math.max(0, p.health - PROC_DATA[i].decay * p.decayMult * pressure * this.getDecayScale() * dt);
             }
-            this.drawStations(); this.drawBoosts(); this.drawCharacter();
+            this.drawStations(); this.drawBoosts(); this.drawBossArea();
             return;
         }
 
@@ -1428,18 +1432,9 @@ class GameScene extends Phaser.Scene {
             this.triggerEvent(); this.eventAccum = 0;
         }
 
-        // Character movement
-        const cdx = this.charTX - this.charX, cdy = this.charTY - this.charY;
-        const dist = Math.sqrt(cdx * cdx + cdy * cdy);
-        if (dist > 2) {
-            const step = Math.min(600 * dt, dist);
-            this.charX += (cdx / dist) * step; this.charY += (cdy / dist) * step;
-        }
-
         // HUD updates
         const secs = Math.ceil(this.timeLeft);
         this.timerTxt.setText(fmtTime(secs));
-        // Timer pulses red in last 15 seconds
         if (secs <= 15) {
             const pulse = Math.sin(this.time.now / 200) * 0.5 + 0.5;
             const r = Math.round(200 + 55 * pulse);
@@ -1447,7 +1442,7 @@ class GameScene extends Phaser.Scene {
             this.timerTxt.setColor(`rgb(${r}, ${gb}, ${gb})`);
             this.timerTxt.setScale(1 + pulse * 0.05);
         } else {
-            this.timerTxt.setColor('#1a1a1a');
+            this.timerTxt.setColor('#FFFFFF');
             this.timerTxt.setScale(1);
         }
         this.coinsTxt.setText('\u{1FA99} ' + this.gs.coins);
@@ -1458,7 +1453,7 @@ class GameScene extends Phaser.Scene {
 
         // Combo meter bar
         this.comboBarGfx.clear();
-        const meterX = 595, meterY = 46, meterW = 90, meterH = 4;
+        const meterX = 378, meterY = 52, meterW = 84, meterH = 4;
         this.comboBarGfx.fillStyle(0x654321, 0.5);
         this.comboBarGfx.fillRoundedRect(meterX, meterY, meterW, meterH, 2);
         let meterFill = 0, meterColor = 0x999999;
@@ -1474,26 +1469,26 @@ class GameScene extends Phaser.Scene {
         // Combo display
         if (tier.mult >= 3) {
             const pulse = Math.sin(this.time.now / 250) * 0.08 + 1;
-            this.comboTxt.setText('\u{1F525}\u{1F525}' + tier.label).setColor('#ff5722').setFontSize('24px').setScale(pulse);
+            this.comboTxt.setText('\u{1F525}\u{1F525}' + tier.label).setColor('#ff5722').setFontSize('22px').setScale(pulse);
             this.goldenTint.setAlpha(0.04 + Math.sin(this.time.now / 500) * 0.02);
         } else if (tier.mult >= 2) {
             const pulse = Math.sin(this.time.now / 400) * 0.04 + 1;
-            this.comboTxt.setText('\u{1F525}' + tier.label).setColor('#ff9800').setFontSize('22px').setScale(pulse);
+            this.comboTxt.setText('\u{1F525}' + tier.label).setColor('#ff9800').setFontSize('20px').setScale(pulse);
             this.goldenTint.setAlpha(0);
         } else if (tier.mult >= 1.5) {
             const pulse = Math.sin(this.time.now / 600) * 0.03 + 1;
-            this.comboTxt.setText(tier.label).setColor('#CC8400').setFontSize('21px').setScale(pulse);
+            this.comboTxt.setText(tier.label).setColor('#ffc107').setFontSize('19px').setScale(pulse);
             this.goldenTint.setAlpha(0);
         } else {
-            this.comboTxt.setText(tier.label).setColor('#1a1a1a').setFontSize('20px').setScale(1);
+            this.comboTxt.setText(tier.label).setColor('#FFFFFF').setFontSize('18px').setScale(1);
             this.goldenTint.setAlpha(0);
         }
 
-        if (this.attending >= 0) this.statusTxt.setText('\u{1F527} ' + PROC_DATA[this.attending].name).setColor('#228B22');
-        else if (this.investing >= 0) this.statusTxt.setText('\u{1F477} ' + ROUND_BOOSTS[this.investing].name + '...').setColor('#FF6B35');
-        else this.statusTxt.setText('').setColor('#654321');
+        if (this.attending >= 0) this.statusTxt.setText('\u{1F527} Atendiendo: ' + PROC_DATA[this.attending].name).setColor('#228B22');
+        else if (this.investing >= 0) this.statusTxt.setText('\u{1F477} Invirtiendo en: ' + ROUND_BOOSTS[this.investing].name + '...').setColor('#FF6B35');
+        else this.statusTxt.setText('Click una estacion para atenderla').setColor('#654321');
 
-        this.drawStations(); this.drawBoosts(); this.drawCharacter();
+        this.drawStations(); this.drawBoosts(); this.drawBossArea();
     }
 
     // ---- End round ----
@@ -1516,7 +1511,7 @@ class GameScene extends Phaser.Scene {
             coins: this.roundCoins, maxCombo: this.maxCombo, arrived: this.roundArrived,
         });
 
-        this.cameras.main.fadeOut(300, 0x87, 0xCE, 0xEB);
+        this.cameras.main.fadeOut(300, 0xC4, 0x95, 0x6A);
         this.time.delayedCall(300, () => {
             if (this.round < TOTAL_ROUNDS) {
                 this.gs.round++;
@@ -1538,28 +1533,25 @@ class ShopScene extends Phaser.Scene {
     init(data) { this.gs = data.gameState; }
 
     create() {
-        this.cameras.main.fadeIn(400, 0x87, 0xCE, 0xEB);
+        this.cameras.main.fadeIn(400, 0xC4, 0x95, 0x6A);
 
-        // Sky gradient background
-        drawSkyGradient(this);
-        createClouds(this);
+        drawWoodBackground(this);
 
         const lastRound = this.gs.roundStats[this.gs.roundStats.length - 1];
 
-        // Header — wooden panel
+        // Header
         const headerGfx = this.add.graphics().setDepth(1);
-        headerGfx.fillStyle(0x8B4513, 1); headerGfx.fillRect(0, 0, W, 100);
-        headerGfx.lineStyle(2, 0x654321, 1); headerGfx.lineBetween(0, 100, W, 100);
+        headerGfx.fillStyle(0x654321, 1); headerGfx.fillRect(0, 0, W, 90);
+        headerGfx.lineStyle(2, 0x8B4513, 1); headerGfx.lineBetween(0, 90, W, 90);
 
-        this.add.text(W / 2, 25, 'DIA ' + lastRound.round + ' COMPLETADO', {
-            fontSize: '28px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
+        this.add.text(W / 2, 22, 'DIA ' + lastRound.round + ' COMPLETADO', {
+            fontSize: '26px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
             stroke: '#1a1a1a', strokeThickness: 3
         }).setOrigin(0.5).setDepth(2);
 
-        // Round stats on tan plaque
+        // Round stats
         const statsPanel = this.add.graphics().setDepth(1);
-        statsPanel.fillStyle(0xD2B48C, 1); statsPanel.fillRoundedRect(W / 2 - 300, 50, 600, 30, 8);
-        statsPanel.lineStyle(1, 0x654321, 1); statsPanel.strokeRoundedRect(W / 2 - 300, 50, 600, 30, 8);
+        statsPanel.fillStyle(0x8B6847, 0.6); statsPanel.fillRoundedRect(W / 2 - 280, 48, 560, 28, 8);
 
         const statsLine = [
             'Exitosos: ' + lastRound.score,
@@ -1567,31 +1559,34 @@ class ShopScene extends Phaser.Scene {
             'Combo max: x' + getComboTier(lastRound.maxCombo).mult,
             'Coins: +' + lastRound.coins + (lastRound.lost === 0 ? ' (+10 bonus!)' : ''),
         ].join('    |    ');
-        this.add.text(W / 2, 65, statsLine, {
-            fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a'
+        this.add.text(W / 2, 62, statsLine, {
+            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#D2B48C'
         }).setOrigin(0.5).setDepth(2);
 
         // Balance
-        this.balanceTxt = this.add.text(W / 2, 130, '\u{1FA99} Balance: ' + this.gs.coins + ' coins', {
+        this.balanceTxt = this.add.text(W / 2, 120, '\u{1FA99} Balance: ' + this.gs.coins + ' coins', {
             fontSize: '20px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
             stroke: '#1a1a1a', strokeThickness: 3
         }).setOrigin(0.5).setDepth(2);
 
-        this.add.text(W / 2, 160, 'TIENDA DE MEJORAS', {
-            fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#555555', letterSpacing: 2
+        this.add.text(W / 2, 155, 'TIENDA DE MEJORAS', {
+            fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#8B6847', letterSpacing: 2
         }).setOrigin(0.5).setDepth(2);
 
-        // Upgrade cards
+        // Upgrade cards - 2 columns x 4 rows (portrait layout)
         this.cardGfx = [];
         this.cardLabels = [];
-        const SHOP_X = [180, 390, 600, 810];
-        const SHOP_Y = [270, 410];
-        const CW = 180, CH = 110;
+        const COL_X = [W / 2 - 140, W / 2 + 140];
+        const ROW_Y = [240, 380, 520, 660];
+        const CW = 240, CH = 115;
 
         for (let j = 0; j < UPGRADES.length; j++) {
             const u = UPGRADES[j];
-            const cx = SHOP_X[u.col];
-            const cy = SHOP_Y[u.row];
+            // Map to 2-column layout
+            const col = j % 2;
+            const row = Math.floor(j / 2);
+            const cx = COL_X[col];
+            const cy = ROW_Y[row];
             const owned = !!this.gs.upgrades[u.id];
             const canAfford = this.gs.coins >= u.price;
 
@@ -1600,7 +1595,7 @@ class ShopScene extends Phaser.Scene {
 
             this.drawCard(g, cx, cy, CW, CH, u, owned, canAfford);
 
-            this.add.text(cx, cy - 30, u.emoji, { fontSize: '24px' }).setOrigin(0.5).setDepth(2);
+            this.add.text(cx, cy - 32, u.emoji, { fontSize: '24px' }).setOrigin(0.5).setDepth(2);
             this.add.text(cx, cy - 4, u.name, {
                 fontSize: '12px', fontFamily: 'Arial, sans-serif', color: owned ? '#228B22' : '#1a1a1a', fontStyle: 'bold'
             }).setOrigin(0.5).setDepth(2);
@@ -1608,7 +1603,7 @@ class ShopScene extends Phaser.Scene {
                 fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#555555', align: 'center', lineSpacing: 2
             }).setOrigin(0.5).setDepth(2);
 
-            const priceTxt = this.add.text(cx, cy + 40, owned ? '\u2705 Comprado' : '\u{1FA99} ' + u.price, {
+            const priceTxt = this.add.text(cx, cy + 42, owned ? '\u2705 Comprado' : '\u{1FA99} ' + u.price, {
                 fontSize: '11px', fontFamily: 'Arial, sans-serif',
                 color: owned ? '#228B22' : (canAfford ? '#8B6914' : '#CC0000'), fontStyle: 'bold'
             }).setOrigin(0.5).setDepth(2);
@@ -1620,10 +1615,10 @@ class ShopScene extends Phaser.Scene {
             }
         }
 
-        // Next day button — bright green
+        // Next day button
         const nextRound = this.gs.round;
-        this.makeBtn(W / 2, 555, 'SIGUIENTE DIA  \u2192  Dia ' + nextRound, () => {
-            this.cameras.main.fadeOut(300, 0x87, 0xCE, 0xEB);
+        this.makeBtn(W / 2, 780, 'SIGUIENTE DIA  \u2192  Dia ' + nextRound, () => {
+            this.cameras.main.fadeOut(300, 0xC4, 0x95, 0x6A);
             this.time.delayedCall(300, () => {
                 this.scene.start('GameScene', { gameState: this.gs });
             });
@@ -1652,14 +1647,14 @@ class ShopScene extends Phaser.Scene {
         const c = this.add.container(x, y).setDepth(3);
         const bg = this.add.graphics();
         const draw = (f, s) => {
-            bg.clear(); bg.fillStyle(f, 1); bg.fillRoundedRect(-160, -26, 320, 52, 12);
-            bg.lineStyle(2, s, 1); bg.strokeRoundedRect(-160, -26, 320, 52, 12);
+            bg.clear(); bg.fillStyle(f, 1); bg.fillRoundedRect(-150, -26, 300, 52, 12);
+            bg.lineStyle(2, s, 1); bg.strokeRoundedRect(-150, -26, 300, 52, 12);
         };
         draw(0x32CD32, 0x228B22);
         const t = this.add.text(0, 0, label, {
             fontSize: '16px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
         }).setOrigin(0.5);
-        c.add([bg, t]).setSize(320, 52).setInteractive({ useHandCursor: true });
+        c.add([bg, t]).setSize(300, 52).setInteractive({ useHandCursor: true });
         c.on('pointerover', () => { draw(0x3DE03D, 0x228B22); c.setScale(1.05); });
         c.on('pointerout', () => { draw(0x32CD32, 0x228B22); c.setScale(1); });
         c.on('pointerdown', fn);
@@ -1675,44 +1670,41 @@ class EndScene extends Phaser.Scene {
     init(data) { this.gs = data.gameState; }
 
     create() {
-        this.cameras.main.fadeIn(500, 0x87, 0xCE, 0xEB);
+        this.cameras.main.fadeIn(500, 0xC4, 0x95, 0x6A);
 
         const d = this.gs;
 
-        // Sky gradient background
-        drawSkyGradient(this);
-        createClouds(this);
+        drawWoodBackground(this);
 
-        this.add.text(W / 2, 40, 'FIN DEL JUEGO', {
+        this.add.text(W / 2, 50, 'FIN DEL JUEGO', {
             fontSize: '36px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
             stroke: '#1a1a1a', strokeThickness: 4
         }).setOrigin(0.5).setDepth(2);
 
-        // Big score — golden
-        const bigScore = this.add.text(W / 2, 110, String(d.totalScore), {
+        // Big score
+        const bigScore = this.add.text(W / 2, 130, String(d.totalScore), {
             fontSize: '60px', fontFamily: 'Arial Black, Arial, sans-serif', color: '#FFD700', fontStyle: 'bold',
             stroke: '#1a1a1a', strokeThickness: 5
         }).setOrigin(0.5).setDepth(2);
         bigScore.setScale(0.5).setAlpha(0);
         this.tweens.add({ targets: bigScore, scaleX: 1, scaleY: 1, alpha: 1, duration: 500, ease: 'Back.easeOut' });
 
-        this.add.text(W / 2, 150, 'CLIENTES EXITOSOS EN 8 DIAS', {
-            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#555555', letterSpacing: 2
+        this.add.text(W / 2, 175, 'CLIENTES EXITOSOS EN 8 DIAS', {
+            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#8B6847', letterSpacing: 2
         }).setOrigin(0.5).setDepth(2);
 
-        // Stats on white/tan panels
+        // Stats
         const upgradeCount = Object.keys(d.upgrades).length;
         const bestRound = d.roundStats.reduce((a, b) => a.score > b.score ? a : b);
         const totalCoins = d.roundStats.reduce((sum, r) => sum + r.coins, 0);
         const maxCombo = Math.max(...d.roundStats.map(r => r.maxCombo));
 
-        const sy = 185;
-        // Stats panel background
+        const sy = 220;
         const statsPanel = this.add.graphics().setDepth(1);
         statsPanel.fillStyle(0xFFFFFF, 0.7);
-        statsPanel.fillRoundedRect(W / 2 - 240, sy - 18, 480, 180, 12);
+        statsPanel.fillRoundedRect(W / 2 - 260, sy - 18, 520, 210, 12);
         statsPanel.lineStyle(1, 0xD2B48C, 1);
-        statsPanel.strokeRoundedRect(W / 2 - 240, sy - 18, 480, 180, 12);
+        statsPanel.strokeRoundedRect(W / 2 - 260, sy - 18, 520, 210, 12);
 
         const stats = [
             ['Clientes que llegaron', d.totalArrived, '#555555'],
@@ -1723,10 +1715,10 @@ class EndScene extends Phaser.Scene {
             ['Combo maximo', 'x' + getComboTier(maxCombo).mult + ' (' + maxCombo + ' seguidos)', '#FF6B35'],
         ];
         stats.forEach(([label, val, color], i) => {
-            this.add.text(W / 2 - 180, sy + i * 28, label, {
+            this.add.text(W / 2 - 200, sy + i * 32, label, {
                 fontSize: '13px', fontFamily: 'Arial, sans-serif', color: '#333333'
             }).setOrigin(0, 0.5).setDepth(2);
-            this.add.text(W / 2 + 180, sy + i * 28, String(val), {
+            this.add.text(W / 2 + 200, sy + i * 32, String(val), {
                 fontSize: '14px', fontFamily: 'Arial Black, Arial, sans-serif', color, fontStyle: 'bold'
             }).setOrigin(1, 0.5).setDepth(2);
         });
@@ -1739,9 +1731,9 @@ class EndScene extends Phaser.Scene {
         else if (d.totalScore >= 20) msg = 'Dia dificil. Invertir temprano en upgrades es clave.';
         else msg = 'Semana complicada. Tip: compra auto-heal temprano para liberar tiempo.';
 
-        this.add.text(W / 2, 380, msg, {
+        this.add.text(W / 2, 460, msg, {
             fontSize: '15px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a',
-            fontStyle: 'italic', align: 'center', wordWrap: { width: 600 }
+            fontStyle: 'italic', align: 'center', wordWrap: { width: 500 }
         }).setOrigin(0.5).setDepth(2);
 
         // Lesson
@@ -1751,30 +1743,40 @@ class EndScene extends Phaser.Scene {
         else if (upgradeCount >= 4 && d.totalScore < 25) lesson = 'Muchos upgrades pero pocos resultados. El timing de las compras importa.';
         else lesson = 'Cada mejora reduce la carga operativa. El equilibrio entre operar e invertir es el flywheel de CS.';
 
-        this.add.text(W / 2, 420, lesson, {
-            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#555555', align: 'center', wordWrap: { width: 600 }
+        this.add.text(W / 2, 510, lesson, {
+            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#8B6847', align: 'center', wordWrap: { width: 500 }
         }).setOrigin(0.5).setDepth(2);
 
-        // Flywheel — wooden panel
+        // Flywheel banner
         const fg = this.add.graphics().setDepth(1);
-        fg.fillStyle(0x8B4513, 1); fg.fillRoundedRect(W / 2 - 310, 450, 620, 36, 8);
-        fg.lineStyle(1, 0x654321, 1); fg.strokeRoundedRect(W / 2 - 310, 450, 620, 36, 8);
-        this.add.text(W / 2, 468, '\u{1F504}  Mas exitos \u2192 Menor riesgo \u2192 Mejor tasa \u2192 Mas acceso \u2192 Mas clientes \u2192 Loop', {
-            fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#FFD700', fontStyle: 'italic'
+        fg.fillStyle(0x8B4513, 1); fg.fillRoundedRect(W / 2 - 280, 560, 560, 36, 8);
+        fg.lineStyle(1, 0x654321, 1); fg.strokeRoundedRect(W / 2 - 280, 560, 560, 36, 8);
+        this.add.text(W / 2, 578, '\u{1F504}  Mas exitos \u2192 Menor riesgo \u2192 Mejor tasa \u2192 Mas acceso \u2192 Mas clientes \u2192 Loop', {
+            fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#FFD700', fontStyle: 'italic'
         }).setOrigin(0.5).setDepth(2);
 
         // Upgrades purchased
         if (upgradeCount > 0) {
             const upEmojis = UPGRADES.filter(u => d.upgrades[u.id]).map(u => u.emoji + ' ' + u.name).join('   ');
-            this.add.text(W / 2, 505, 'Mejoras compradas: ' + upEmojis, {
-                fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#228B22'
+            this.add.text(W / 2, 620, 'Mejoras compradas: ' + upEmojis, {
+                fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#228B22',
+                wordWrap: { width: 500 }, align: 'center'
             }).setOrigin(0.5).setDepth(2);
         }
 
+        // Workers celebration row
+        const celebGfx = this.add.graphics().setDepth(1);
+        for (let i = 0; i < 5; i++) {
+            const wx = 110 + i * 110;
+            const wy = 700;
+            const armOff = Math.sin(Date.now() / 200 + i) * 6;
+            drawWorker(celebGfx, wx, wy, WORKER_SHIRTS[i], WORKER_SKINS[i], WORKER_HAIR[i], armOff, 0);
+        }
+
         // Buttons
-        this.makeBtn(W / 2 - 140, 565, 'Compartir', () => this.share());
-        this.makeBtn(W / 2 + 140, 565, 'Jugar de nuevo', () => {
-            this.cameras.main.fadeOut(300, 0x87, 0xCE, 0xEB);
+        this.makeBtn(W / 2 - 130, 790, 'Compartir', () => this.share());
+        this.makeBtn(W / 2 + 130, 790, 'Jugar de nuevo', () => {
+            this.cameras.main.fadeOut(300, 0xC4, 0x95, 0x6A);
             this.time.delayedCall(300, () => this.scene.start('MenuScene'));
         });
     }
@@ -1821,10 +1823,10 @@ class EndScene extends Phaser.Scene {
     }
 
     toast(msg) {
-        const t = this.add.text(W / 2, 600, msg, {
+        const t = this.add.text(W / 2, 850, msg, {
             fontSize: '13px', fontFamily: 'Arial, sans-serif', color: '#228B22'
         }).setOrigin(0.5).setDepth(5);
-        this.tweens.add({ targets: t, alpha: 0, y: 585, duration: 1500, onComplete: () => t.destroy() });
+        this.tweens.add({ targets: t, alpha: 0, y: 835, duration: 1500, onComplete: () => t.destroy() });
     }
 }
 
@@ -1833,9 +1835,9 @@ class EndScene extends Phaser.Scene {
 // ===================================================================
 
 new Phaser.Game({
-    type: Phaser.AUTO, width: W, height: H,
-    backgroundColor: '#87CEEB',
-    resolution: window.devicePixelRatio || 1,
+    type: Phaser.AUTO,
+    width: W, height: H,
+    backgroundColor: '#C4956A',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     scene: [MenuScene, GameScene, ShopScene, EndScene]
 });

@@ -123,6 +123,16 @@ const ROUND_SUBS = [
     'Dia final — sobrevive',
 ];
 
+// --- Round boosts (in-game projects — tension: processes vs investment) ---
+const ROUND_BOOSTS = [
+    { name: 'Cafe',          emoji: '\u2615', investTime: 8,  desc: 'Heal +100%\nresto del round',  color: 0x8B4513 },
+    { name: 'Reporte',       emoji: '\u{1F4CB}', investTime: 10, desc: 'Velocidad +50%\nresto del round', color: 0x1F77B4 },
+    { name: 'Coordinacion',  emoji: '\u{1F4E2}', investTime: 12, desc: 'Decay -50%\nresto del round',    color: 0x4caf50 },
+];
+const BOOST_W = 100, BOOST_H = 70;
+const BOOST_X = [340, 480, 620];
+const BOOST_Y = 430;
+
 const CHAR_HOME = { x: W / 2, y: 370 };
 
 // --- Utils ---
@@ -347,6 +357,13 @@ class GameScene extends Phaser.Scene {
 
         this.prevComboTier = getComboTier(0);
 
+        // Round boosts (in-game projects)
+        this.investing = -1;
+        this.boostState = ROUND_BOOSTS.map(() => ({ progress: 0, done: false }));
+        this.boostHealMult = 1;
+        this.boostSpeedMult = 1;
+        this.boostDecayMult = 1;
+
         this.applyUpgrades();
     }
 
@@ -387,6 +404,7 @@ class GameScene extends Phaser.Scene {
 
         this.createHUD();
         this.createPipeline();
+        this.createBoostPanel();
         this.createCharacter();
         this.createEventOverlay();
         this.createRoundStartOverlay();
@@ -528,6 +546,42 @@ class GameScene extends Phaser.Scene {
         this.add.text(PROC_X[4] + PROC_W / 2 + 28, PROC_Y, '\u2192\u2705', { fontSize: '16px' }).setOrigin(0.5).setDepth(10);
     }
 
+    // ---- Boost panel (in-round projects) ----
+    createBoostPanel() {
+        // Label
+        this.add.text(W / 2, BOOST_Y - 50, 'PROYECTOS — Invierte tiempo para boosts (dejas de atender!)', {
+            fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a', letterSpacing: 1
+        }).setOrigin(0.5).setDepth(5);
+
+        this.boostGfx = [];
+        this.boostDoneTxt = [];
+
+        for (let j = 0; j < 3; j++) {
+            const x = BOOST_X[j];
+            const data = ROUND_BOOSTS[j];
+
+            const gfx = this.add.graphics().setDepth(5);
+            this.boostGfx.push(gfx);
+
+            this.add.text(x, BOOST_Y - 18, data.emoji, { fontSize: '20px' }).setOrigin(0.5).setDepth(10);
+            this.add.text(x, BOOST_Y + 2, data.name, {
+                fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#1a1a1a', fontStyle: 'bold'
+            }).setOrigin(0.5).setDepth(10);
+            this.add.text(x, BOOST_Y + 17, data.investTime + 's', {
+                fontSize: '8px', fontFamily: 'Arial, sans-serif', color: '#666666'
+            }).setOrigin(0.5).setDepth(10);
+
+            const doneTxt = this.add.text(x, BOOST_Y - 2, '\u2705', {
+                fontSize: '28px'
+            }).setOrigin(0.5).setDepth(20).setVisible(false);
+            this.boostDoneTxt.push(doneTxt);
+
+            const zone = this.add.zone(x, BOOST_Y, BOOST_W + 6, BOOST_H + 6)
+                .setInteractive({ useHandCursor: true }).setDepth(25);
+            zone.on('pointerdown', () => this.clickBoost(j));
+        }
+    }
+
     createCharacter() {
         this.charGfx = this.add.graphics().setDepth(30);
         this.charEmoji = this.add.text(this.charX, this.charY, '\u{1F477}', { fontSize: '28px' }).setOrigin(0.5).setDepth(31);
@@ -636,7 +690,38 @@ class GameScene extends Phaser.Scene {
             return;
         }
         this.attending = i;
+        this.investing = -1;
         this.charTX = PROC_X[i]; this.charTY = PROC_Y + 95;
+        this.charEmoji.setText('\u{1F527}');
+    }
+
+    clickBoost(j) {
+        if (this.eventPaused || !this.roundStarted) return;
+        if (this.boostState[j].done) {
+            this.floatText(BOOST_X[j], BOOST_Y - 45, '\u2705 ACTIVO', '#4caf50');
+            return;
+        }
+        this.investing = j;
+        this.attending = -1;
+        this.charTX = BOOST_X[j]; this.charTY = BOOST_Y - 50;
+        this.charEmoji.setText('\u{1F477}');
+    }
+
+    completeBoost(j) {
+        const bs = this.boostState[j];
+        bs.done = true;
+        bs.progress = ROUND_BOOSTS[j].investTime;
+
+        if (j === 0) this.boostHealMult = 2;       // Cafe: heal +100%
+        if (j === 1) this.boostSpeedMult = 0.6;     // Reporte: speed +50% (0.6x time)
+        if (j === 2) this.boostDecayMult = 0.5;     // Coordinacion: decay -50%
+
+        this.floatText(BOOST_X[j], BOOST_Y - 45, '\u2705 ' + ROUND_BOOSTS[j].name + '!', '#4caf50');
+        this.cameras.main.flash(200, 76, 175, 80, false);
+
+        this.investing = -1;
+        this.charTX = CHAR_HOME.x; this.charTY = CHAR_HOME.y;
+        this.charEmoji.setText('\u{1F477}');
     }
 
     // ---- Game logic helpers ----
@@ -704,11 +789,11 @@ class GameScene extends Phaser.Scene {
 
         // Health
         if (this.attending === i) {
-            p.health = Math.min(100, p.health + HEAL_RATE * this.healMult * this.healRateMult * dt);
+            p.health = Math.min(100, p.health + HEAL_RATE * this.healMult * this.healRateMult * this.boostHealMult * dt);
         } else {
             if (p.autoHealRate > 0) p.health = Math.min(100, p.health + p.autoHealRate * dt);
             const pressure = (1 + p.queue.length * 0.12);
-            p.health = Math.max(0, p.health - data.decay * p.decayMult * pressure * dScale * dt);
+            p.health = Math.max(0, p.health - data.decay * p.decayMult * this.boostDecayMult * pressure * dScale * dt);
         }
 
         // Frozen
@@ -730,7 +815,7 @@ class GameScene extends Phaser.Scene {
         const speed = Math.max(attendBoost, autoBoost);
 
         if (hf > 0 && p.queue.length > 0 && speed > 0) {
-            const et = data.processTime * p.speedMult * CLIENT_TYPES[p.queue[0].type].timeMult;
+            const et = data.processTime * p.speedMult * this.boostSpeedMult * CLIENT_TYPES[p.queue[0].type].timeMult;
             p.processProgress += (dt * speed * hf) / et;
 
             while (p.processProgress >= 1 && p.queue.length > 0) {
@@ -1215,6 +1300,41 @@ class GameScene extends Phaser.Scene {
         }
     }
 
+    drawBoosts() {
+        for (let j = 0; j < 3; j++) {
+            const g = this.boostGfx[j];
+            const bs = this.boostState[j];
+            const data = ROUND_BOOSTS[j];
+            const x = BOOST_X[j];
+            g.clear();
+
+            const inv = this.investing === j;
+            const done = bs.done;
+
+            let bg, brd, bw;
+            if (done) { bg = 0x32CD32; brd = 0x228B22; bw = 3; }
+            else if (inv) { bg = 0xFFA500; brd = 0xFF6B35; bw = 3; }
+            else { bg = 0xF5F5F5; brd = data.color; bw = 2; }
+
+            const pw = BOOST_W / 2, ph = BOOST_H / 2;
+            g.fillStyle(bg, 1); g.fillRoundedRect(x - pw, BOOST_Y - ph, BOOST_W, BOOST_H, 10);
+            g.lineStyle(bw, brd, 1); g.strokeRoundedRect(x - pw, BOOST_Y - ph, BOOST_W, BOOST_H, 10);
+
+            // Progress bar
+            if (!done) {
+                const barY = BOOST_Y + ph - 14, barW = BOOST_W - 12, barH = 6;
+                g.fillStyle(0xdddddd, 1); g.fillRoundedRect(x - barW / 2, barY, barW, barH, 2);
+                const ratio = bs.progress / data.investTime;
+                if (ratio > 0) {
+                    g.fillStyle(inv ? 0xFF6B35 : 0x999999, 1);
+                    g.fillRoundedRect(x - barW / 2, barY, barW * ratio, barH, 2);
+                }
+            }
+
+            this.boostDoneTxt[j].setVisible(done);
+        }
+    }
+
     drawCharacter() {
         const time = this.time.now;
         this.charGfx.clear();
@@ -1259,7 +1379,7 @@ class GameScene extends Phaser.Scene {
                 const pressure = (1 + p.queue.length * 0.12);
                 p.health = Math.max(0, p.health - PROC_DATA[i].decay * p.decayMult * pressure * this.getDecayScale() * dt);
             }
-            this.drawStations(); this.drawCharacter();
+            this.drawStations(); this.drawBoosts(); this.drawCharacter();
             return;
         }
 
@@ -1292,6 +1412,14 @@ class GameScene extends Phaser.Scene {
 
         // Process updates
         for (let i = 0; i < 5; i++) this.updateProcess(i, dt);
+
+        // Boost investment
+        if (this.investing >= 0 && !this.boostState[this.investing].done) {
+            this.boostState[this.investing].progress += dt;
+            if (this.boostState[this.investing].progress >= ROUND_BOOSTS[this.investing].investTime) {
+                this.completeBoost(this.investing);
+            }
+        }
 
         // Events
         this.eventAccum += dt;
@@ -1362,9 +1490,10 @@ class GameScene extends Phaser.Scene {
         }
 
         if (this.attending >= 0) this.statusTxt.setText('\u{1F527} ' + PROC_DATA[this.attending].name).setColor('#228B22');
+        else if (this.investing >= 0) this.statusTxt.setText('\u{1F477} ' + ROUND_BOOSTS[this.investing].name + '...').setColor('#FF6B35');
         else this.statusTxt.setText('').setColor('#654321');
 
-        this.drawStations(); this.drawCharacter();
+        this.drawStations(); this.drawBoosts(); this.drawCharacter();
     }
 
     // ---- End round ----
@@ -1706,6 +1835,7 @@ class EndScene extends Phaser.Scene {
 new Phaser.Game({
     type: Phaser.AUTO, width: W, height: H,
     backgroundColor: '#87CEEB',
+    resolution: window.devicePixelRatio || 1,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     scene: [MenuScene, GameScene, ShopScene, EndScene]
 });

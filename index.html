@@ -9,20 +9,28 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             background: #2a1a0e;
-            display: flex; justify-content: center; align-items: center;
-            min-height: 100vh; overflow: hidden;
+            margin: 0; padding: 0;
+            overflow: hidden;
+            width: 100vw; height: 100vh; height: 100dvh;
             font-family: 'Nunito', 'Trebuchet MS', 'Segoe UI', Arial, sans-serif;
             -webkit-user-select: none; user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        #game-wrapper {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
         }
         #game-container {
             position: relative;
             width: 640px; height: 960px;
             overflow: hidden;
+            transform-origin: top left;
         }
         #game-canvas {
             position: absolute; top: 0; left: 0;
             width: 640px; height: 960px;
-            image-rendering: -webkit-optimize-contrast;
         }
         /* DOM overlay layer */
         .dom-layer {
@@ -221,6 +229,7 @@
     </style>
 </head>
 <body>
+<div id="game-wrapper">
 <div id="game-container">
     <canvas id="game-canvas" width="640" height="960"></canvas>
     <div class="dom-layer" id="dom-layer">
@@ -293,6 +302,7 @@
         </div>
     </div>
 </div>
+</div>
 
 <script>
 // ===================================================================
@@ -304,16 +314,22 @@ const W = 640, H = 960;
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const container = document.getElementById('game-container');
+const wrapper = document.getElementById('game-wrapper');
 
-// --- Viewport scaling ---
+// --- Viewport scaling (mobile-friendly) ---
 function scaleContainer() {
-    const sw = window.innerWidth, sh = window.innerHeight;
+    const sw = window.innerWidth;
+    const sh = window.innerHeight;
     const scale = Math.min(sw / W, sh / H);
+    // Scale the container, wrapper handles centering via CSS
     container.style.transform = `scale(${scale})`;
-    container.style.transformOrigin = 'center center';
+    // Set wrapper size to the scaled dimensions so CSS centering works
+    wrapper.style.width = (W * scale) + 'px';
+    wrapper.style.height = (H * scale) + 'px';
 }
 scaleContainer();
 window.addEventListener('resize', scaleContainer);
+window.addEventListener('orientationchange', () => setTimeout(scaleContainer, 200));
 
 // --- Config ---
 const TOTAL_ROUNDS = 8;

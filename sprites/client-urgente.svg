@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60" width="40" height="60">
+  <!-- Client Urgente - Mini chibi person (red, stressed) -->
+
+  <!-- Shadow -->
+  <ellipse cx="20" cy="58" rx="10" ry="2" fill="rgba(0,0,0,0.15)"/>
+
+  <!-- Legs (running pose - slightly angled) -->
+  <rect x="10" y="42" width="6" height="12" rx="3" fill="#555" transform="rotate(-8, 13, 48)"/>
+  <rect x="24" y="42" width="6" height="12" rx="3" fill="#555" transform="rotate(8, 27, 48)"/>
+  <!-- Shoes -->
+  <rect x="8" y="52" width="9" height="5" rx="2" fill="#333"/>
+  <rect x="23" y="52" width="9" height="5" rx="2" fill="#333"/>
+
+  <!-- Body (red outfit = urgent!) -->
+  <rect x="10" y="28" width="20" height="18" rx="4" fill="#E53935"/>
+
+  <!-- Arms (raised in panic) -->
+  <rect x="2" y="24" width="7" height="14" rx="3" fill="#E53935" transform="rotate(-20, 5, 31)"/>
+  <rect x="31" y="24" width="7" height="14" rx="3" fill="#E53935" transform="rotate(20, 35, 31)"/>
+  <!-- Hands -->
+  <circle cx="4" cy="38" r="3" fill="#FFD5A0"/>
+  <circle cx="36" cy="38" r="3" fill="#FFD5A0"/>
+
+  <!-- Head -->
+  <rect x="6" y="2" width="28" height="28" rx="6" fill="#FFD5A0"/>
+
+  <!-- Hair (messy/spiky = stressed) -->
+  <rect x="6" y="0" width="28" height="8" rx="4" fill="#8B0000"/>
+  <polygon points="10,-2 14,4 8,4" fill="#8B0000"/>
+  <polygon points="18,-4 22,4 14,4" fill="#8B0000"/>
+  <polygon points="26,-3 30,4 22,4" fill="#8B0000"/>
+  <polygon points="32,-1 34,4 28,4" fill="#8B0000"/>
+
+  <!-- Exclamation mark above head -->
+  <rect x="17" y="-12" width="6" height="10" rx="2" fill="#FF4444"/>
+  <circle cx="20" cy="1" r="2.5" fill="#FF4444"/>
+
+  <!-- Eyes (wide, panicked) -->
+  <circle cx="14" cy="16" r="6" fill="#FFF"/>
+  <circle cx="26" cy="16" r="6" fill="#FFF"/>
+  <!-- Tiny pupils (shocked look) -->
+  <circle cx="15" cy="17" r="2" fill="#333"/>
+  <circle cx="27" cy="17" r="2" fill="#333"/>
+  <circle cx="14" cy="14" r="1" fill="#FFF"/>
+  <circle cx="26" cy="14" r="1" fill="#FFF"/>
+
+  <!-- Eyebrows (worried, raised) -->
+  <rect x="8" y="8" width="12" height="3" rx="1" fill="#8B0000" transform="rotate(10, 14, 9)"/>
+  <rect x="22" y="8" width="12" height="3" rx="1" fill="#8B0000" transform="rotate(-10, 28, 9)"/>
+
+  <!-- Mouth (open, stressed O) -->
+  <ellipse cx="20" cy="25" rx="5" ry="4" fill="#C0392B"/>
+  <ellipse cx="20" cy="24" rx="3.5" ry="2" fill="#222"/>
+
+  <!-- Sweat drop -->
+  <path d="M34 8 Q36 4 36 8 Q36 11 34 11 Q32 11 34 8Z" fill="#64B5F6"/>
+
+  <!-- Speed lines (rushing) -->
+  <line x1="0" y1="32" x2="6" y2="32" stroke="#FF4444" stroke-width="1.5" opacity="0.5"/>
+  <line x1="1" y1="38" x2="5" y2="38" stroke="#FF4444" stroke-width="1" opacity="0.4"/>
+  <line x1="0" y1="44" x2="7" y2="44" stroke="#FF4444" stroke-width="1.5" opacity="0.5"/>
+</svg>

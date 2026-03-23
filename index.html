@@ -316,6 +316,18 @@ const ctx = canvas.getContext('2d');
 const container = document.getElementById('game-container');
 const wrapper = document.getElementById('game-wrapper');
 
+// --- Sprite preloading ---
+const spriteWorker = new Image();
+spriteWorker.src = 'sprites/worker.svg';
+const spriteBoss = new Image();
+spriteBoss.src = 'sprites/boss.svg';
+const spriteClientNormal = new Image();
+spriteClientNormal.src = 'sprites/client-normal.svg';
+const spriteClientVip = new Image();
+spriteClientVip.src = 'sprites/client-vip.svg';
+const spriteClientUrgente = new Image();
+spriteClientUrgente.src = 'sprites/client-urgente.svg';
+
 // --- Viewport scaling (mobile-friendly) ---
 function scaleContainer() {
     const sw = window.innerWidth;
@@ -376,7 +388,7 @@ const WORKER_HELMETS = ['#FFD700', '#FF5722', '#4CAF50', '#2196F3', '#9C27B0'];
 // --- Client types ---
 const CLIENT_TYPES = {
     normal:  { color: '#00CED1', value: 3, timeMult: 1.0, ageMult: 1.0, dot: '\u25CF' },
-    vip:     { color: '#ffd700', value: 5, timeMult: 1.5, ageMult: 1.0, dot: '\u2605' },
+    vip:     { color: '#ffd700', value: 5, timeMult: 1.5, ageMult: 1.0, dot: '\u270B' },
     urgente: { color: '#FF4444', value: 4, timeMult: 0.7, ageMult: 2.0, dot: '!' },
 };
 
@@ -405,8 +417,8 @@ const EVENTS = [
         optB: { label: 'Resolver', desc: '-10 coins', cost: 10, apply() {} },
     },
     {
-        title: 'CLIENTE VIP', text: 'Un cliente VIP importante quiere entrar al pipeline',
-        optA: { label: 'Aceptar', desc: '+1 VIP (vale 5 coins)', apply(g) { g.addClientOfType(0, 'vip'); } },
+        title: 'CLIENTE COMPLICADO', text: 'Un cliente complicado quiere entrar al pipeline',
+        optA: { label: 'Aceptar', desc: '+1 Complicado (vale 5 coins)', apply(g) { g.addClientOfType(0, 'vip'); } },
         optB: { label: 'Rechazar', desc: 'Nada pasa', cost: 0, apply() {} },
     },
     {
@@ -435,7 +447,7 @@ const EVENTS = [
 const ROUND_SUBS = [
     'Aprende a manejar el pipeline',
     'Los clientes aumentan',
-    'Clientes VIP comienzan a llegar',
+    'Clientes complicados comienzan a llegar',
     'Mas clientes, mas presion',
     'Clientes urgentes aparecen',
     'Eventos mas frecuentes',
@@ -549,235 +561,37 @@ function drawStripesBackground(color1, color2) {
 // CHIBI CHARACTER DRAWING
 // ===================================================================
 
-// --- Draw chibi worker ---
+// --- Draw chibi worker (SVG sprite) ---
 function drawWorker(cx, cy, shirtColor, skinColor, hairColor, armOffset, shakeX, scale) {
+    if (!spriteWorker.complete) return;
     const s = scale || 1;
     ctx.save();
     ctx.translate(cx + (shakeX || 0), cy);
     ctx.scale(s, s);
-    const x = 0, y = 0;
-    const helmetIdx = WORKER_SHIRTS.indexOf(shirtColor);
-    const helmetColor = WORKER_HELMETS[helmetIdx >= 0 ? helmetIdx : 0];
-
-    // Shadow under character
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    fillEllipse(x, y + 30, 16, 4);
-
-    // Body (small rectangle, shirt color)
-    ctx.fillStyle = shirtColor;
-    fillRoundRect(x - 8, y + 2, 16, 16, 3);
-
-    // Arms (stubby rectangles on sides)
-    ctx.fillStyle = shirtColor;
-    fillRoundRect(x - 13, y + 3 + armOffset, 5, 12, 2);
-    fillRoundRect(x + 8, y + 3 + armOffset, 5, 12, 2);
-
-    // Hands (tiny skin circles)
-    ctx.fillStyle = skinColor;
-    ctx.beginPath(); ctx.arc(x - 10, y + 16 + armOffset, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x + 10, y + 16 + armOffset, 3, 0, Math.PI * 2); ctx.fill();
-
-    // Legs (tiny stumps)
-    ctx.fillStyle = '#444';
-    fillRoundRect(x - 6, y + 18, 5, 8, 2);
-    fillRoundRect(x + 1, y + 18, 5, 8, 2);
-
-    // Shoes
-    ctx.fillStyle = '#333';
-    fillRoundRect(x - 7, y + 24, 6, 4, 2);
-    fillRoundRect(x + 1, y + 24, 6, 4, 2);
-
-    // HEAD (big square, ~60% of character height)
-    const headW = 26, headH = 24;
-    ctx.fillStyle = skinColor;
-    fillRoundRect(x - headW / 2, y - 24, headW, headH, 5);
-
-    // Hair
-    ctx.fillStyle = hairColor;
-    fillRoundRect(x - headW / 2, y - 28, headW, 8, 4);
-    // Hair side bits
-    fillRoundRect(x - headW / 2 - 1, y - 24, 3, 8, 1);
-    fillRoundRect(x + headW / 2 - 2, y - 24, 3, 8, 1);
-
-    // Safety helmet on top
-    ctx.fillStyle = helmetColor;
-    fillRoundRect(x - 14, y - 30, 28, 8, 4);
-    // Helmet brim
-    ctx.fillStyle = helmetColor;
-    fillRoundRect(x - 16, y - 23, 32, 3, 1);
-
-    // Eyes (big white circles with black pupils)
-    // Left eye
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(x - 6, y - 14, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#000000';
-    ctx.beginPath(); ctx.arc(x - 5, y - 13, 2.5, 0, Math.PI * 2); ctx.fill();
-    // Eye shine
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(x - 4, y - 15, 1.2, 0, Math.PI * 2); ctx.fill();
-
-    // Right eye
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(x + 6, y - 14, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#000000';
-    ctx.beginPath(); ctx.arc(x + 7, y - 13, 2.5, 0, Math.PI * 2); ctx.fill();
-    // Eye shine
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(x + 8, y - 15, 1.2, 0, Math.PI * 2); ctx.fill();
-
-    // Eyebrows (thick, angled down = working hard)
-    ctx.strokeStyle = hairColor; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(x - 10, y - 21); ctx.lineTo(x - 3, y - 19); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x + 10, y - 21); ctx.lineTo(x + 3, y - 19); ctx.stroke();
-
-    // Mouth (small wide rectangle / smile)
-    ctx.fillStyle = '#C0392B';
-    fillRoundRect(x - 4, y - 6, 8, 3, 1.5);
-
+    ctx.drawImage(spriteWorker, -40, -95, 80, 105);
     ctx.restore();
 }
 
-// --- Draw mini client figure (tiny person silhouette) ---
+// --- Draw mini client figure (SVG sprite) ---
 function drawMiniClient(cx, cy, color, isFirst) {
+    let img = spriteClientNormal;
+    if (color === '#ffd700') img = spriteClientVip;
+    else if (color === '#FF4444') img = spriteClientUrgente;
+    if (!img.complete) return;
     const s = isFirst ? 1.2 : 1;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(s, s);
-    // Head
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(0, -6, 3, 0, Math.PI * 2); ctx.fill();
-    // Body
-    ctx.fillRect(-2, -3, 4, 7);
-    // Legs
-    ctx.fillRect(-2, 4, 2, 4);
-    ctx.fillRect(1, 4, 2, 4);
+    ctx.drawImage(img, -8, -14, 16, 22);
     ctx.restore();
 }
 
-// --- Draw motorcycle (for Entrega station) ---
-function drawMotorcycle(cx, cy) {
-    ctx.save();
-    ctx.translate(cx, cy);
-    // Wheels
-    ctx.fillStyle = '#333';
-    ctx.beginPath(); ctx.arc(-10, 8, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(12, 8, 6, 0, Math.PI * 2); ctx.fill();
-    // Wheel hubs
-    ctx.fillStyle = '#888';
-    ctx.beginPath(); ctx.arc(-10, 8, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(12, 8, 2, 0, Math.PI * 2); ctx.fill();
-    // Frame
-    ctx.strokeStyle = '#E53935'; ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-10, 8); ctx.lineTo(-2, -2); ctx.lineTo(8, -2); ctx.lineTo(12, 8);
-    ctx.stroke();
-    // Seat
-    ctx.fillStyle = '#5D3A1A';
-    fillRoundRect(-4, -6, 12, 4, 2);
-    // Handlebar
-    ctx.strokeStyle = '#666'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(8, -2); ctx.lineTo(12, -8); ctx.stroke();
-    // Headlight
-    ctx.fillStyle = '#FFD700';
-    ctx.beginPath(); ctx.arc(14, -4, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-}
-
-// --- Draw chibi boss ---
+// --- Draw chibi boss (SVG sprite) ---
 function drawBoss(cx, cy, armOffset, comboHigh, faceRed) {
+    if (!spriteBoss.complete) return;
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.scale(1.3, 1.3);
-    const x = 0, y = 0;
-    const scale = 1.5;
-
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    fillEllipse(x, y + 42, 22, 5);
-
-    // Body (dark suit, small rectangle)
-    ctx.fillStyle = '#1B2A4A';
-    fillRoundRect(x - 12 * scale, y - 4, 24 * scale, 20 * scale, 4);
-
-    // Arms
-    ctx.fillStyle = '#1B2A4A';
-    fillRoundRect(x - 16 * scale, y - 2 + armOffset, 6 * scale, 16 * scale, 3);
-    fillRoundRect(x + 10 * scale, y - 2 + armOffset, 6 * scale, 16 * scale, 3);
-
-    // Hands
-    ctx.fillStyle = '#FFCC99';
-    ctx.beginPath(); ctx.arc(x - 13 * scale, y + 18 + armOffset, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x + 13 * scale, y + 18 + armOffset, 4, 0, Math.PI * 2); ctx.fill();
-
-    // Legs (tiny)
-    ctx.fillStyle = '#1B2A4A';
-    fillRoundRect(x - 8, y + 26, 7, 10, 2);
-    fillRoundRect(x + 1, y + 26, 7, 10, 2);
-
-    // Shoes
-    ctx.fillStyle = '#111';
-    fillRoundRect(x - 9, y + 34, 8, 5, 2);
-    fillRoundRect(x + 1, y + 34, 8, 5, 2);
-
-    // Red tie
-    ctx.fillStyle = '#CC0000';
-    ctx.beginPath();
-    ctx.moveTo(x, y - 4);
-    ctx.lineTo(x - 4, y + 6);
-    ctx.lineTo(x, y + 14);
-    ctx.lineTo(x + 4, y + 6);
-    ctx.closePath();
-    ctx.fill();
-    // Tie knot
-    ctx.fillStyle = '#990000';
-    fillRoundRect(x - 3, y - 6, 6, 4, 2);
-
-    // HEAD (big square, chibi)
-    const headW = 36, headH = 34;
-    ctx.fillStyle = faceRed ? '#FF8888' : '#FFCC99';
-    fillRoundRect(x - headW / 2, y - 42, headW, headH, 7);
-
-    // Hair (slicked back, dark)
-    ctx.fillStyle = '#222222';
-    fillRoundRect(x - headW / 2, y - 48, headW, 12, 6);
-    // Side hair
-    fillRoundRect(x - headW / 2 - 1, y - 42, 4, 10, 2);
-    fillRoundRect(x + headW / 2 - 3, y - 42, 4, 10, 2);
-
-    // Eyes (big white circles with black pupils - bigger for boss)
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(x - 8, y - 28, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#000000';
-    ctx.beginPath(); ctx.arc(x - 7, y - 27, 3.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(x - 6, y - 30, 1.5, 0, Math.PI * 2); ctx.fill();
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(x + 8, y - 28, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#000000';
-    ctx.beginPath(); ctx.arc(x + 9, y - 27, 3.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(x + 10, y - 30, 1.5, 0, Math.PI * 2); ctx.fill();
-
-    // Angry eyebrows (V shape - thick)
-    ctx.strokeStyle = '#222'; ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.moveTo(x - 15, y - 38); ctx.lineTo(x - 4, y - 34); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x + 15, y - 38); ctx.lineTo(x + 4, y - 34); ctx.stroke();
-
-    // Mouth
-    if (comboHigh) {
-        // Smile when combo is high
-        ctx.strokeStyle = '#C0392B'; ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(x, y - 16, 6, 0.1 * Math.PI, 0.9 * Math.PI);
-        ctx.stroke();
-    } else {
-        // Frown
-        ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(x, y - 12, 5, 1.1 * Math.PI, 1.9 * Math.PI);
-        ctx.stroke();
-    }
+    ctx.drawImage(spriteBoss, -50, -120, 100, 130);
     ctx.restore();
 }
 
@@ -1119,7 +933,7 @@ function drawMenuScene() {
         '\u{1FA99}  Cada cliente exitoso = coins para la tienda',
         '\u{1F525}  Combo: clientes sin perder = multiplicador',
         '',
-        '\u25CF Normal (3)   \u2605 VIP (5)   ! Urgente (4)',
+        '\u25CF Normal (3)   \u270B Complicado (5)   ! Urgente (4)',
         '',
         '8 dias  \u2022  90s cada uno  \u2022  ~15 min total',
     ];
@@ -2198,29 +2012,66 @@ function drawStations(now) {
             fillRoundRect(x - pW / 2, convY + 24, pW * Math.min(1, p.processProgress), 4, 2);
         }
 
-        // Client queue as mini person figures
+        // === CLIENT QUEUE BAR (prominent waiting line) ===
+        const qBarW = PROC_W - 16;
+        const qBarH = 22;
+        const qBarX = x - qBarW / 2;
+        const qBarY = y + 30;
+
+        // Bar background (dark, shows max capacity)
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        fillRoundRect(qBarX, qBarY, qBarW, qBarH, 6);
+
+        // Fill based on how full (green → yellow → red)
+        const fillRatio = p.queue.length / CLIENT_MAX;
+        if (p.queue.length > 0) {
+            let barColor;
+            if (fillRatio >= 0.75) barColor = '#FF4444';
+            else if (fillRatio >= 0.5) barColor = '#FFA726';
+            else barColor = '#66BB6A';
+            ctx.fillStyle = barColor;
+            fillRoundRect(qBarX, qBarY, qBarW * fillRatio, qBarH, 6);
+        }
+
+        // Border
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1;
+        strokeRoundRect(qBarX, qBarY, qBarW, qBarH, 6);
+
+        // Draw mini client figures standing IN the bar
         if (p.queue.length > 0) {
             const maxFigs = Math.min(p.queue.length, 8);
-            const figSpacing = 15;
-            const startFX = x - ((maxFigs - 1) * figSpacing) / 2;
+            const figSpacing = (qBarW - 12) / CLIENT_MAX;
+            const startFX = qBarX + 6 + figSpacing / 2;
             for (let j = 0; j < maxFigs; j++) {
                 const c = p.queue[j];
-                ctx.globalAlpha = j === 0 ? 1 : 0.65;
-                drawMiniClient(startFX + j * figSpacing, convY + 2, CLIENT_TYPES[c.type].color, j === 0);
+                ctx.globalAlpha = j === 0 ? 1 : 0.75;
+                drawMiniClient(startFX + j * figSpacing, qBarY + qBarH / 2 - 2, CLIENT_TYPES[c.type].color, j === 0);
             }
             ctx.globalAlpha = 1;
         }
 
-        // Client count badge
-        if (p.queue.length > 0) {
-            const bcx = x + hw - 14, bcy = y - hh + 14;
-            ctx.fillStyle = p.queue.length >= 6 ? '#FF4444' : '#FF6B35';
-            ctx.beginPath(); ctx.arc(bcx, bcy, 13, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(bcx, bcy, 13, 0, Math.PI * 2); ctx.stroke();
-            ctx.font = '900 14px "Nunito", Arial, sans-serif';
+        // Queue count text
+        ctx.font = '900 10px "Nunito", Arial, sans-serif';
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+        const qText = p.queue.length + '/' + CLIENT_MAX;
+        ctx.strokeText(qText, qBarX + qBarW - 4, qBarY + qBarH / 2);
+        ctx.fillText(qText, qBarX + qBarW - 4, qBarY + qBarH / 2);
+
+        // BLOCKED indicator when full (8/8)
+        if (p.queue.length >= CLIENT_MAX) {
+            const pulse = 0.6 + Math.sin(now / 200) * 0.4;
+            // Flashing red border on the queue bar
+            ctx.strokeStyle = `rgba(255,0,0,${pulse})`; ctx.lineWidth = 3;
+            strokeRoundRect(qBarX - 1, qBarY - 1, qBarW + 2, qBarH + 2, 7);
+            // LLENO badge
+            ctx.fillStyle = `rgba(255,68,68,${0.8 + Math.sin(now / 300) * 0.2})`;
+            fillRoundRect(x - 30, qBarY - 14, 60, 16, 4);
+            ctx.font = '900 10px "Nunito", Arial, sans-serif';
             ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(String(p.queue.length), bcx, bcy);
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+            ctx.strokeText('\u26D4 LLENO', x, qBarY - 6);
+            ctx.fillText('\u26D4 LLENO', x, qBarY - 6);
         }
 
         // Status text

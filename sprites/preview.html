@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sprites Preview</title>
+    <style>
+        body {
+            background: #2a1a0e;
+            color: #FFD700;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            gap: 30px;
+        }
+        h1 { font-size: 24px; margin-bottom: 10px; }
+        h2 { font-size: 18px; color: #D2B48C; }
+        .row {
+            display: flex;
+            gap: 40px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .sprite-box {
+            background: #8B5E3C;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid #5D3A1A;
+        }
+        .sprite-box img {
+            display: block;
+            margin: 0 auto 10px;
+        }
+        .sprite-box .label {
+            color: #FFD700;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .sprite-box .size {
+            color: #aaa;
+            font-size: 11px;
+        }
+        .bg-game {
+            background: #C4956A;
+            padding: 30px;
+            border-radius: 12px;
+        }
+        .bg-dark {
+            background: #3E2723;
+            padding: 30px;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sprites — Un Dia en Ops</h1>
+
+    <h2>Personajes principales</h2>
+    <div class="row">
+        <div class="sprite-box">
+            <img src="worker.svg" width="120" height="160">
+            <div class="label">Worker (Operador CS)</div>
+            <div class="size">120x160</div>
+        </div>
+        <div class="sprite-box">
+            <img src="boss.svg" width="150" height="200">
+            <div class="label">Boss (Jefe)</div>
+            <div class="size">150x200</div>
+        </div>
+    </div>
+
+    <h2>Clientes (cola de espera)</h2>
+    <div class="row">
+        <div class="sprite-box">
+            <img src="client-normal.svg" width="40" height="60">
+            <div class="label">Normal (3 coins)</div>
+            <div class="size">40x60 — cyan</div>
+        </div>
+        <div class="sprite-box">
+            <img src="client-vip.svg" width="40" height="60">
+            <div class="label">Complicado (5 coins)</div>
+            <div class="size">40x60 — brazos cruzados</div>
+        </div>
+        <div class="sprite-box">
+            <img src="client-urgente.svg" width="40" height="60">
+            <div class="label">Urgente (4 coins)</div>
+            <div class="size">40x60 — rojo, estresado</div>
+        </div>
+    </div>
+
+    <h2>Escala en contexto (fondo juego)</h2>
+    <div class="bg-game">
+        <div class="row" style="gap:20px;">
+            <img src="client-normal.svg" width="24" height="36">
+            <img src="client-vip.svg" width="24" height="36">
+            <img src="client-urgente.svg" width="24" height="36">
+            <img src="client-normal.svg" width="24" height="36">
+            <img src="worker.svg" width="60" height="80">
+            <img src="client-normal.svg" width="24" height="36">
+            <img src="boss.svg" width="75" height="100">
+        </div>
+    </div>
+
+    <h2>Escala en contexto (fondo oscuro)</h2>
+    <div class="bg-dark">
+        <div class="row" style="gap:15px;">
+            <img src="worker.svg" width="48" height="64">
+            <img src="client-normal.svg" width="20" height="30">
+            <img src="client-vip.svg" width="20" height="30">
+            <img src="client-urgente.svg" width="20" height="30">
+            <img src="client-normal.svg" width="20" height="30">
+            <img src="client-normal.svg" width="20" height="30">
+        </div>
+    </div>
+</body>
+</html>

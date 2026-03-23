@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" width="120" height="160">
+  <!-- Worker CS - Chibi Blocky Style - Profesional/Concentrado -->
+
+  <!-- Shadow -->
+  <ellipse cx="60" cy="155" rx="28" ry="5" fill="rgba(0,0,0,0.2)"/>
+
+  <!-- Legs -->
+  <rect x="38" y="118" width="14" height="22" rx="4" fill="#3D3D3D"/>
+  <rect x="68" y="118" width="14" height="22" rx="4" fill="#3D3D3D"/>
+  <!-- Shoes -->
+  <rect x="34" y="136" width="20" height="10" rx="5" fill="#222"/>
+  <rect x="66" y="136" width="20" height="10" rx="5" fill="#222"/>
+
+  <!-- Body (blue polo shirt) -->
+  <rect x="32" y="82" width="56" height="42" rx="6" fill="#2196F3"/>
+  <!-- Collar -->
+  <path d="M46 82 L60 90 L74 82" fill="#1976D2"/>
+  <!-- Pocket -->
+  <rect x="66" y="96" width="14" height="12" rx="2" fill="#1E88E5" stroke="#1565C0" stroke-width="1"/>
+  <!-- Pen in pocket -->
+  <rect x="72" y="92" width="2" height="8" rx="1" fill="#333"/>
+  <!-- ID Badge -->
+  <rect x="38" y="94" width="12" height="16" rx="2" fill="#ECEFF1" stroke="#BDBDBD" stroke-width="1"/>
+  <rect x="40" y="96" width="8" height="4" rx="1" fill="#64B5F6"/>
+  <rect x="40" y="102" width="8" height="2" fill="#BDBDBD"/>
+  <rect x="40" y="106" width="6" height="2" fill="#BDBDBD"/>
+
+  <!-- Arms -->
+  <rect x="18" y="86" width="16" height="32" rx="6" fill="#2196F3"/>
+  <rect x="86" y="86" width="16" height="32" rx="6" fill="#2196F3"/>
+  <!-- Hands -->
+  <circle cx="26" cy="122" r="7" fill="#FFD5A0"/>
+  <circle cx="94" cy="122" r="7" fill="#FFD5A0"/>
+
+  <!-- HEAD (big square) -->
+  <rect x="16" y="4" width="88" height="82" rx="14" fill="#FFD5A0"/>
+
+  <!-- Hair (neat, professional) -->
+  <rect x="16" y="0" width="88" height="22" rx="10" fill="#333"/>
+  <rect x="14" y="14" width="8" height="18" rx="3" fill="#333"/>
+  <rect x="98" y="14" width="8" height="18" rx="3" fill="#333"/>
+
+  <!-- Safety Helmet -->
+  <rect x="12" y="-2" width="96" height="22" rx="8" fill="#FFC107"/>
+  <rect x="8" y="16" width="104" height="8" rx="3" fill="#FFC107"/>
+  <rect x="24" y="4" width="30" height="6" rx="3" fill="#FFD54F" opacity="0.5"/>
+  <!-- Helmet logo (small circle) -->
+  <circle cx="60" cy="10" r="6" fill="#FF9800"/>
+  <text x="60" y="13" text-anchor="middle" font-size="8" font-weight="bold" fill="#FFF" font-family="Arial">D</text>
+
+  <!-- Eyes (focused, slightly narrow) -->
+  <circle cx="42" cy="46" r="13" fill="#FFFFFF"/>
+  <circle cx="78" cy="46" r="13" fill="#FFFFFF"/>
+  <!-- Pupils (looking forward, determined) -->
+  <circle cx="44" cy="47" r="6.5" fill="#333"/>
+  <circle cx="80" cy="47" r="6.5" fill="#333"/>
+  <!-- Eye shine -->
+  <circle cx="40" cy="43" r="3" fill="#FFF"/>
+  <circle cx="76" cy="43" r="3" fill="#FFF"/>
+
+  <!-- Eyebrows (focused, slightly furrowed - not angry, concentrated) -->
+  <rect x="28" y="30" width="24" height="5" rx="2" fill="#333" transform="rotate(-5, 40, 32)"/>
+  <rect x="68" y="30" width="24" height="5" rx="2" fill="#333" transform="rotate(5, 80, 32)"/>
+
+  <!-- Mouth (neutral/focused - straight line, slight determination) -->
+  <line x1="46" y1="68" x2="74" y2="68" stroke="#A0522D" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Slight chin dimple -->
+  <line x1="58" y1="72" x2="62" y2="72" stroke="#E8B887" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

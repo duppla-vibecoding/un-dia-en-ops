@@ -245,15 +245,15 @@
         <!-- Game DOM -->
         <div id="screen-game" class="screen">
             <!-- 5 station click zones -->
-            <div id="stz-0" class="clickable" style="left:30px;top:222px;width:172px;height:167px;"></div>
-            <div id="stz-1" class="clickable" style="left:240px;top:222px;width:172px;height:167px;"></div>
-            <div id="stz-2" class="clickable" style="left:450px;top:222px;width:172px;height:167px;"></div>
-            <div id="stz-3" class="clickable" style="left:135px;top:402px;width:172px;height:167px;"></div>
-            <div id="stz-4" class="clickable" style="left:345px;top:402px;width:172px;height:167px;"></div>
+            <div id="stz-0" class="clickable" style="left:23px;top:130px;width:182px;height:210px;"></div>
+            <div id="stz-1" class="clickable" style="left:235px;top:130px;width:182px;height:210px;"></div>
+            <div id="stz-2" class="clickable" style="left:447px;top:130px;width:182px;height:210px;"></div>
+            <div id="stz-3" class="clickable" style="left:130px;top:350px;width:182px;height:210px;"></div>
+            <div id="stz-4" class="clickable" style="left:334px;top:350px;width:182px;height:210px;"></div>
             <!-- 3 boost click zones -->
-            <div id="bstz-0" class="clickable" style="left:30px;top:680px;width:176px;height:86px;"></div>
-            <div id="bstz-1" class="clickable" style="left:235px;top:680px;width:176px;height:86px;"></div>
-            <div id="bstz-2" class="clickable" style="left:440px;top:680px;width:176px;height:86px;"></div>
+            <div id="bstz-0" class="clickable" style="left:30px;top:660px;width:176px;height:86px;"></div>
+            <div id="bstz-1" class="clickable" style="left:235px;top:660px;width:176px;height:86px;"></div>
+            <div id="bstz-2" class="clickable" style="left:440px;top:660px;width:176px;height:86px;"></div>
             <!-- Round start overlay -->
             <div id="round-start-overlay">
                 <div id="round-start-panel">
@@ -316,18 +316,6 @@ const ctx = canvas.getContext('2d');
 const container = document.getElementById('game-container');
 const wrapper = document.getElementById('game-wrapper');
 
-// --- Sprite preloading ---
-const spriteWorker = new Image();
-spriteWorker.src = 'sprites/worker.svg';
-const spriteBoss = new Image();
-spriteBoss.src = 'sprites/boss.svg';
-const spriteClientNormal = new Image();
-spriteClientNormal.src = 'sprites/client-normal.svg';
-const spriteClientVip = new Image();
-spriteClientVip.src = 'sprites/client-vip.svg';
-const spriteClientUrgente = new Image();
-spriteClientUrgente.src = 'sprites/client-urgente.svg';
-
 // --- Viewport scaling (mobile-friendly) ---
 function scaleContainer() {
     const sw = window.innerWidth;
@@ -346,11 +334,8 @@ window.addEventListener('orientationchange', () => setTimeout(scaleContainer, 20
 // --- Config ---
 const TOTAL_ROUNDS = 8;
 const ROUND_TIME = 90;
-const HEAL_RATE = 18;
 const CLIENT_MAX = 8;
-const LOSS_INTERVAL = 3;
-const CLIENT_EXPIRY = 45;
-const COIN_QUALITY_BONUS = 10;
+const CLIENT_EXPIRY = 40;
 
 // --- Combo tiers ---
 const COMBO_TIERS = [
@@ -362,21 +347,21 @@ const COMBO_TIERS = [
 
 // --- Process data ---
 const PROC_DATA = [
-    { name: 'Onboarding',   emoji: '\u{1F4CB}', processTime: 3,   decay: 3.5 },
-    { name: 'Seguimiento',  emoji: '\u{1F4DE}', processTime: 6,   decay: 1.5 },
-    { name: 'Entrega',      emoji: '\u{1F3CD}\uFE0F', processTime: 4.5, decay: 2.5 },
-    { name: 'Recaudo',      emoji: '\u{1F4B0}', processTime: 4.5, decay: 2.2 },
-    { name: 'Off Ramp',     emoji: '\u{1F389}', processTime: 7,   decay: 2.0 },
+    { name: 'Onboarding',   emoji: '\u{1F4CB}', processTime: 3   },
+    { name: 'Seguimiento',  emoji: '\u{1F4DE}', processTime: 6   },
+    { name: 'Entrega',      emoji: '\u{1F3CD}\uFE0F', processTime: 4.5 },
+    { name: 'Recaudo',      emoji: '\u{1F4B0}', processTime: 4.5 },
+    { name: 'Off Ramp',     emoji: '\u{1F389}', processTime: 7   },
 ];
-const PROC_W = 160, PROC_H = 155;
+const PROC_W = 170, PROC_H = 200;
 
 // --- Station grid positions ---
 const PROC_POS = [
-    { x: 110, y: 300 },
-    { x: 320, y: 300 },
-    { x: 530, y: 300 },
-    { x: 215, y: 480 },
-    { x: 425, y: 480 },
+    { x: 108, y: 230 },
+    { x: 320, y: 230 },
+    { x: 532, y: 230 },
+    { x: 215, y: 450 },
+    { x: 425, y: 450 },
 ];
 
 // --- Worker colors (vibrant saturated for chibi) ---
@@ -387,21 +372,21 @@ const WORKER_HELMETS = ['#FFD700', '#FF5722', '#4CAF50', '#2196F3', '#9C27B0'];
 
 // --- Client types ---
 const CLIENT_TYPES = {
-    normal:  { color: '#00CED1', value: 3, timeMult: 1.0, ageMult: 1.0, dot: '\u25CF' },
-    vip:     { color: '#ffd700', value: 5, timeMult: 1.5, ageMult: 1.0, dot: '\u270B' },
-    urgente: { color: '#FF4444', value: 4, timeMult: 0.7, ageMult: 2.0, dot: '!' },
+    normal:    { color: '#00CED1', timeMult: 1.0, ageMult: 1.0, dot: '\u25CF' },
+    complicado: { color: '#ffd700', timeMult: 1.5, ageMult: 1.0, dot: '\u2605' },
+    urgente:   { color: '#FF4444', timeMult: 0.7, ageMult: 2.0, dot: '!' },
 };
 
 // --- Upgrades ---
 const UPGRADES = [
-    { id: 'app',       name: 'App Clientes',   emoji: '\u{1F4F1}', price: 15, desc: 'Onboarding\nauto-heal 2%/s',        row: 0, col: 0 },
-    { id: 'dashboard', name: 'Dashboard',       emoji: '\u{1F4CA}', price: 15, desc: 'Seguimiento\n40% mas rapido',       row: 0, col: 1 },
-    { id: 'protocolo', name: 'Protocolo',       emoji: '\u{1F4E6}', price: 15, desc: 'Entrega\n40% mas rapido',           row: 0, col: 2 },
-    { id: 'debito',    name: 'Debito Auto',     emoji: '\u{1F3E6}', price: 20, desc: 'Recaudo\nauto-heal 3%/s',          row: 0, col: 3 },
-    { id: 'script',    name: 'Script MDC',      emoji: '\u{1F4DE}', price: 20, desc: 'Recaudo\n40% mas rapido',            row: 1, col: 0 },
-    { id: 'capacita',  name: 'Capacitacion',    emoji: '\u{1F4DA}', price: 25, desc: 'Todo\nheal rate +50%',              row: 1, col: 1 },
-    { id: 'gestion',   name: 'Gestion Casos',   emoji: '\u{1F3AB}', price: 30, desc: 'Todo\ndecay 30% mas lento',        row: 1, col: 2 },
-    { id: 'auto',      name: 'Automatizacion',  emoji: '\u{1F916}', price: 35, desc: 'Un proceso\nse vuelve auto',       row: 1, col: 3 },
+    { id: 'app',       name: 'App Clientes',   emoji: '\u{1F4F1}', price: 5,  desc: 'Auto-procesar\nOnboarding 0.3x',    row: 0, col: 0 },
+    { id: 'dashboard', name: 'Dashboard',       emoji: '\u{1F4CA}', price: 5,  desc: 'Seguimiento\n40% mas rapido',       row: 0, col: 1 },
+    { id: 'protocolo', name: 'Protocolo',       emoji: '\u{1F4E6}', price: 5,  desc: 'Entrega\n40% mas rapido',           row: 0, col: 2 },
+    { id: 'debito',    name: 'Debito Auto',     emoji: '\u{1F3E6}', price: 7,  desc: 'Auto-procesar\nRecaudo 0.3x',       row: 0, col: 3 },
+    { id: 'script',    name: 'Script MDC',      emoji: '\u{1F4DE}', price: 7,  desc: 'Seguimiento+Recaudo\n30% rapido',   row: 1, col: 0 },
+    { id: 'capacita',  name: 'Capacitacion',    emoji: '\u{1F4DA}', price: 10, desc: 'Todo\nvelocidad +30%',              row: 1, col: 1 },
+    { id: 'gestion',   name: 'Gestion Casos',   emoji: '\u{1F3AB}', price: 12, desc: 'Clientes\n30% mas pacientes',      row: 1, col: 2 },
+    { id: 'auto',      name: 'Automatizacion',  emoji: '\u{1F916}', price: 15, desc: 'Un proceso\nse vuelve auto',       row: 1, col: 3 },
 ];
 
 // --- Events ---
@@ -409,37 +394,37 @@ const EVENTS = [
     {
         title: 'DEBITO FALLIDO', text: 'Debito automatico fallo en 10% de inquilinos',
         optA: { label: 'Aceptar', desc: '+3 clientes Recaudo', apply(g) { g.addClientsTo(3, 3); } },
-        optB: { label: 'Mitigar', desc: '-8 coins, +1 cliente', cost: 8, apply(g) { g.addClientsTo(3, 1); } },
+        optB: { label: 'Mitigar', desc: '-3 exitosos, +1 cliente', cost: 3, apply(g) { g.addClientsTo(3, 1); } },
     },
     {
         title: 'MOROSO CRONICO', text: 'Inquilino lleva 2 meses sin pagar — escalamiento',
-        optA: { label: 'Ignorar', desc: 'Recaudo salud -40%', apply(g) { g.procs[3].health = Math.min(g.procs[3].health, 40); g.flashStation(3); } },
-        optB: { label: 'Resolver', desc: '-10 coins', cost: 10, apply() {} },
+        optA: { label: 'Ignorar', desc: '+2 urgentes en Recaudo', apply(g) { g.addClientOfType(3, 'urgente'); g.addClientOfType(3, 'urgente'); } },
+        optB: { label: 'Resolver', desc: '-4 exitosos', cost: 4, apply() {} },
     },
     {
         title: 'CLIENTE COMPLICADO', text: 'Un cliente complicado quiere entrar al pipeline',
-        optA: { label: 'Aceptar', desc: '+1 Complicado (vale 5 coins)', apply(g) { g.addClientOfType(0, 'vip'); } },
+        optA: { label: 'Aceptar', desc: '+1 complicado', apply(g) { g.addClientOfType(0, 'complicado'); } },
         optB: { label: 'Rechazar', desc: 'Nada pasa', cost: 0, apply() {} },
     },
     {
         title: 'ERROR SISTEMA', text: 'Sistema caido temporalmente',
         optA: { label: 'Esperar', desc: 'Proceso congelado 10s', apply(g) { const t = randInt(0, 4); g.freezeProc(t, 10); } },
-        optB: { label: 'Fix rapido', desc: '-6 coins, solo 4s', cost: 6, apply(g) { const t = randInt(0, 4); g.freezeProc(t, 4); } },
+        optB: { label: 'Fix rapido', desc: '-2 exitosos, solo 4s', cost: 2, apply(g) { const t = randInt(0, 4); g.freezeProc(t, 4); } },
     },
     {
         title: 'AVALANCHA CASOS', text: '4 casos urgentes de clientes llegan de golpe',
         optA: { label: 'Absorber', desc: '+4 clientes urgentes', apply(g) { for (let i = 0; i < 4; i++) g.addClientOfType(randInt(0, 4), 'urgente'); } },
-        optB: { label: 'Filtrar', desc: '-7 coins, +2 normales', cost: 7, apply(g) { g.addClientsTo(randInt(0, 4), 2); } },
+        optB: { label: 'Filtrar', desc: '-3 exitosos, +2 normales', cost: 3, apply(g) { g.addClientsTo(randInt(0, 4), 2); } },
     },
     {
-        title: 'PLATAFORMA CAIDA', text: 'Plataforma de pagos caida — todo mas lento',
-        optA: { label: 'Esperar', desc: 'Heal reducido 15s', apply(g) { g.healMult = 0.4; g.healDebuffTimer = 15; } },
-        optB: { label: 'Backup', desc: '-10 coins, solo 5s', cost: 10, apply(g) { g.healMult = 0.5; g.healDebuffTimer = 5; } },
+        title: 'PLATAFORMA CAIDA', text: 'Plataforma de pagos caida — proceso mas lento',
+        optA: { label: 'Esperar', desc: 'Velocidad -50% por 15s', apply(g) { g.speedDebuffMult = 0.5; g.speedDebuffTimer = 15; } },
+        optB: { label: 'Backup', desc: '-4 exitosos, solo 5s', cost: 4, apply(g) { g.speedDebuffMult = 0.5; g.speedDebuffTimer = 5; } },
     },
     {
         title: 'NUEVA REGULACION', text: 'Regulacion obliga a actualizar contratos',
         optA: { label: 'Cumplir', desc: '+3 en Seguimiento', apply(g) { g.addClientsTo(1, 3); } },
-        optB: { label: 'Outsource', desc: '-8 coins, +1', cost: 8, apply(g) { g.addClientsTo(1, 1); } },
+        optB: { label: 'Outsource', desc: '-3 exitosos, +1', cost: 3, apply(g) { g.addClientsTo(1, 1); } },
     },
 ];
 
@@ -447,7 +432,7 @@ const EVENTS = [
 const ROUND_SUBS = [
     'Aprende a manejar el pipeline',
     'Los clientes aumentan',
-    'Clientes complicados comienzan a llegar',
+    'Clientes VIP comienzan a llegar',
     'Mas clientes, mas presion',
     'Clientes urgentes aparecen',
     'Eventos mas frecuentes',
@@ -457,9 +442,9 @@ const ROUND_SUBS = [
 
 // --- Round boosts ---
 const ROUND_BOOSTS = [
-    { name: 'Comite Ops',        emoji: '\u{1F91D}', investTime: 8,  desc: 'Heal +100%\nresto del dia',   color: '#E91E63' },
+    { name: 'Comite Ops',        emoji: '\u{1F91D}', investTime: 8,  desc: 'Velocidad +50%\nresto del dia',   color: '#E91E63' },
     { name: 'Rev. Dashboard',    emoji: '\u{1F4CA}', investTime: 10, desc: 'Velocidad +50%\nresto del dia', color: '#2196F3' },
-    { name: 'Training Interno',  emoji: '\u{1F393}', investTime: 12, desc: 'Decay -50%\nresto del dia',    color: '#FF9800' },
+    { name: 'Training Interno',  emoji: '\u{1F393}', investTime: 12, desc: 'Paciencia +50%\nresto del dia',   color: '#FF9800' },
 ];
 const BOOST_W = 170, BOOST_H = 80;
 const BOOST_X = [115, 320, 525];
@@ -467,7 +452,6 @@ const BOOST_Y = 720;
 
 // --- Utils ---
 function fmtTime(s) { return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }
-function hpColor(hp) { return hp > 60 ? '#4CAF50' : hp > 30 ? '#FFC107' : '#F44336'; }
 function getComboTier(c) { return COMBO_TIERS.find(t => c >= t.min); }
 function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 function randFloat(a, b) { return Math.random() * (b - a) + a; }
@@ -475,7 +459,7 @@ function randItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 function freshGameState() {
     return {
-        round: 1, coins: 0, totalScore: 0, totalLost: 0, totalArrived: 0,
+        round: 1, exitosos: 0, totalScore: 0, totalLost: 0, totalArrived: 0,
         upgrades: {}, roundStats: [],
     };
 }
@@ -561,37 +545,342 @@ function drawStripesBackground(color1, color2) {
 // CHIBI CHARACTER DRAWING
 // ===================================================================
 
-// --- Draw chibi worker (SVG sprite) ---
+// --- Draw chibi worker ---
 function drawWorker(cx, cy, shirtColor, skinColor, hairColor, armOffset, shakeX, scale) {
-    if (!spriteWorker.complete) return;
     const s = scale || 1;
     ctx.save();
     ctx.translate(cx + (shakeX || 0), cy);
     ctx.scale(s, s);
-    ctx.drawImage(spriteWorker, -40, -95, 80, 105);
+    const x = 0, y = 0;
+    const helmetIdx = WORKER_SHIRTS.indexOf(shirtColor);
+    const helmetColor = WORKER_HELMETS[helmetIdx >= 0 ? helmetIdx : 0];
+
+    // Shadow under character
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    fillEllipse(x, y + 30, 16, 4);
+
+    // Body (small rectangle, shirt color)
+    ctx.fillStyle = shirtColor;
+    fillRoundRect(x - 8, y + 2, 16, 16, 3);
+
+    // Arms (stubby rectangles on sides)
+    ctx.fillStyle = shirtColor;
+    fillRoundRect(x - 13, y + 3 + armOffset, 5, 12, 2);
+    fillRoundRect(x + 8, y + 3 + armOffset, 5, 12, 2);
+
+    // Hands (tiny skin circles)
+    ctx.fillStyle = skinColor;
+    ctx.beginPath(); ctx.arc(x - 10, y + 16 + armOffset, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 10, y + 16 + armOffset, 3, 0, Math.PI * 2); ctx.fill();
+
+    // Legs (tiny stumps)
+    ctx.fillStyle = '#444';
+    fillRoundRect(x - 6, y + 18, 5, 8, 2);
+    fillRoundRect(x + 1, y + 18, 5, 8, 2);
+
+    // Shoes
+    ctx.fillStyle = '#333';
+    fillRoundRect(x - 7, y + 24, 6, 4, 2);
+    fillRoundRect(x + 1, y + 24, 6, 4, 2);
+
+    // HEAD (big square, ~60% of character height)
+    const headW = 26, headH = 24;
+    ctx.fillStyle = skinColor;
+    fillRoundRect(x - headW / 2, y - 24, headW, headH, 5);
+
+    // Hair
+    ctx.fillStyle = hairColor;
+    fillRoundRect(x - headW / 2, y - 28, headW, 8, 4);
+    // Hair side bits
+    fillRoundRect(x - headW / 2 - 1, y - 24, 3, 8, 1);
+    fillRoundRect(x + headW / 2 - 2, y - 24, 3, 8, 1);
+
+    // Safety helmet on top
+    ctx.fillStyle = helmetColor;
+    fillRoundRect(x - 14, y - 30, 28, 8, 4);
+    // Helmet brim
+    ctx.fillStyle = helmetColor;
+    fillRoundRect(x - 16, y - 23, 32, 3, 1);
+
+    // Eyes (big white circles with black pupils)
+    // Left eye
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x - 6, y - 14, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(x - 5, y - 13, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Eye shine
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x - 4, y - 15, 1.2, 0, Math.PI * 2); ctx.fill();
+
+    // Right eye
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x + 6, y - 14, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(x + 7, y - 13, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Eye shine
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x + 8, y - 15, 1.2, 0, Math.PI * 2); ctx.fill();
+
+    // Eyebrows (thick, angled down = working hard)
+    ctx.strokeStyle = hairColor; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(x - 10, y - 21); ctx.lineTo(x - 3, y - 19); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 10, y - 21); ctx.lineTo(x + 3, y - 19); ctx.stroke();
+
+    // Mouth (small wide rectangle / smile)
+    ctx.fillStyle = '#C0392B';
+    fillRoundRect(x - 4, y - 6, 8, 3, 1.5);
+
     ctx.restore();
 }
 
-// --- Draw mini client figure (SVG sprite) ---
-function drawMiniClient(cx, cy, color, isFirst) {
-    let img = spriteClientNormal;
-    if (color === '#ffd700') img = spriteClientVip;
-    else if (color === '#FF4444') img = spriteClientUrgente;
-    if (!img.complete) return;
-    const s = isFirst ? 1.2 : 1;
+// --- Draw chibi client (big, expressive, desperation-based) ---
+function drawChibiClient(cx, cy, clientType, despRatio, isProcessing, now) {
+    const s = isProcessing ? 1.15 : 1;
+    // Desperation level: 0=calm, 1=neutral, 2=impatient, 3=angry
+    let level = 0;
+    if (despRatio > 0.75) level = 3;
+    else if (despRatio > 0.5) level = 2;
+    else if (despRatio > 0.25) level = 1;
+
+    // Body color shifts with desperation
+    const DESP_COLORS = ['#4CAF50', '#FFC107', '#FF9800', '#F44336'];
+    const bodyColor = DESP_COLORS[level];
+
+    // Shake for impatient/angry
+    let shakeX = 0;
+    if (level >= 2) {
+        const shakeAmp = level === 3 ? 4 : 2;
+        const shakeSpeed = level === 3 ? 80 : 150;
+        shakeX = Math.sin((now || 0) / shakeSpeed) * shakeAmp;
+    }
+
     ctx.save();
-    ctx.translate(cx, cy);
+    ctx.translate(cx + shakeX, cy);
     ctx.scale(s, s);
-    ctx.drawImage(img, -8, -14, 16, 22);
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    fillEllipse(0, 18, 10, 3);
+
+    // Body
+    ctx.fillStyle = bodyColor;
+    fillRoundRect(-7, -2, 14, 14, 3);
+
+    // Arms
+    ctx.fillStyle = bodyColor;
+    fillRoundRect(-10, -1, 4, 10, 2);
+    fillRoundRect(6, -1, 4, 10, 2);
+
+    // Legs
+    ctx.fillStyle = '#555';
+    fillRoundRect(-5, 12, 4, 6, 2);
+    fillRoundRect(1, 12, 4, 6, 2);
+
+    // Shoes
+    ctx.fillStyle = '#333';
+    fillRoundRect(-6, 16, 5, 3, 1);
+    fillRoundRect(1, 16, 5, 3, 1);
+
+    // Head (big chibi head)
+    const skinColor = '#FFCC99';
+    ctx.fillStyle = level === 3 ? '#FF8888' : skinColor;
+    fillRoundRect(-12, -22, 24, 20, 5);
+
+    // Hair
+    ctx.fillStyle = clientType === 'complicado' ? '#8B4513' : (clientType === 'urgente' ? '#333' : '#5D3A1A');
+    fillRoundRect(-12, -25, 24, 7, 3);
+
+    // Eyes
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath(); ctx.arc(-5, -14, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(5, -14, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(-4, -13, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6, -13, 2, 0, Math.PI * 2); ctx.fill();
+    // Eye shine
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath(); ctx.arc(-3, -15, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(7, -15, 1, 0, Math.PI * 2); ctx.fill();
+
+    // Eyebrows (change with desperation)
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+    if (level >= 2) {
+        // Angry V-brows
+        ctx.beginPath(); ctx.moveTo(-9, -21); ctx.lineTo(-3, -18); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(9, -21); ctx.lineTo(3, -18); ctx.stroke();
+    } else if (level === 1) {
+        // Flat
+        ctx.beginPath(); ctx.moveTo(-9, -19); ctx.lineTo(-2, -19); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(9, -19); ctx.lineTo(2, -19); ctx.stroke();
+    }
+    // level 0: no brows (relaxed)
+
+    // Mouth
+    if (level === 0) {
+        // Smile
+        ctx.strokeStyle = '#C0392B'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(0, -8, 4, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+    } else if (level === 1) {
+        // Flat line
+        ctx.strokeStyle = '#888'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(-3, -7); ctx.lineTo(3, -7); ctx.stroke();
+    } else if (level === 2) {
+        // Frown
+        ctx.strokeStyle = '#C0392B'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(0, -4, 4, 1.1 * Math.PI, 1.9 * Math.PI); ctx.stroke();
+    } else {
+        // Open angry mouth
+        ctx.fillStyle = '#C0392B';
+        fillRoundRect(-4, -10, 8, 5, 2);
+        ctx.fillStyle = '#FFF';
+        fillRoundRect(-3, -10, 6, 2, 1);
+    }
+
+    // Type-specific accessories
+    if (clientType === 'complicado') {
+        // Crown
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.moveTo(-8, -26); ctx.lineTo(-6, -31); ctx.lineTo(-2, -27);
+        ctx.lineTo(0, -33); ctx.lineTo(2, -27);
+        ctx.lineTo(6, -31); ctx.lineTo(8, -26);
+        ctx.closePath();
+        ctx.fill();
+    } else if (clientType === 'urgente') {
+        // Exclamation mark floating above
+        ctx.fillStyle = '#FF4444';
+        ctx.font = '900 14px "Nunito", Arial, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('!', 0, -32);
+    }
+
     ctx.restore();
 }
 
-// --- Draw chibi boss (SVG sprite) ---
-function drawBoss(cx, cy, armOffset, comboHigh, faceRed) {
-    if (!spriteBoss.complete) return;
+// --- Draw motorcycle (for Entrega station) ---
+function drawMotorcycle(cx, cy) {
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.drawImage(spriteBoss, -50, -120, 100, 130);
+    // Wheels
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(-10, 8, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(12, 8, 6, 0, Math.PI * 2); ctx.fill();
+    // Wheel hubs
+    ctx.fillStyle = '#888';
+    ctx.beginPath(); ctx.arc(-10, 8, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(12, 8, 2, 0, Math.PI * 2); ctx.fill();
+    // Frame
+    ctx.strokeStyle = '#E53935'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-10, 8); ctx.lineTo(-2, -2); ctx.lineTo(8, -2); ctx.lineTo(12, 8);
+    ctx.stroke();
+    // Seat
+    ctx.fillStyle = '#5D3A1A';
+    fillRoundRect(-4, -6, 12, 4, 2);
+    // Handlebar
+    ctx.strokeStyle = '#666'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(8, -2); ctx.lineTo(12, -8); ctx.stroke();
+    // Headlight
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath(); ctx.arc(14, -4, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+}
+
+// --- Draw chibi boss ---
+function drawBoss(cx, cy, armOffset, comboHigh, faceRed) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1.3, 1.3);
+    const x = 0, y = 0;
+    const scale = 1.5;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    fillEllipse(x, y + 42, 22, 5);
+
+    // Body (dark suit, small rectangle)
+    ctx.fillStyle = '#1B2A4A';
+    fillRoundRect(x - 12 * scale, y - 4, 24 * scale, 20 * scale, 4);
+
+    // Arms
+    ctx.fillStyle = '#1B2A4A';
+    fillRoundRect(x - 16 * scale, y - 2 + armOffset, 6 * scale, 16 * scale, 3);
+    fillRoundRect(x + 10 * scale, y - 2 + armOffset, 6 * scale, 16 * scale, 3);
+
+    // Hands
+    ctx.fillStyle = '#FFCC99';
+    ctx.beginPath(); ctx.arc(x - 13 * scale, y + 18 + armOffset, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 13 * scale, y + 18 + armOffset, 4, 0, Math.PI * 2); ctx.fill();
+
+    // Legs (tiny)
+    ctx.fillStyle = '#1B2A4A';
+    fillRoundRect(x - 8, y + 26, 7, 10, 2);
+    fillRoundRect(x + 1, y + 26, 7, 10, 2);
+
+    // Shoes
+    ctx.fillStyle = '#111';
+    fillRoundRect(x - 9, y + 34, 8, 5, 2);
+    fillRoundRect(x + 1, y + 34, 8, 5, 2);
+
+    // Red tie
+    ctx.fillStyle = '#CC0000';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 4);
+    ctx.lineTo(x - 4, y + 6);
+    ctx.lineTo(x, y + 14);
+    ctx.lineTo(x + 4, y + 6);
+    ctx.closePath();
+    ctx.fill();
+    // Tie knot
+    ctx.fillStyle = '#990000';
+    fillRoundRect(x - 3, y - 6, 6, 4, 2);
+
+    // HEAD (big square, chibi)
+    const headW = 36, headH = 34;
+    ctx.fillStyle = faceRed ? '#FF8888' : '#FFCC99';
+    fillRoundRect(x - headW / 2, y - 42, headW, headH, 7);
+
+    // Hair (slicked back, dark)
+    ctx.fillStyle = '#222222';
+    fillRoundRect(x - headW / 2, y - 48, headW, 12, 6);
+    // Side hair
+    fillRoundRect(x - headW / 2 - 1, y - 42, 4, 10, 2);
+    fillRoundRect(x + headW / 2 - 3, y - 42, 4, 10, 2);
+
+    // Eyes (big white circles with black pupils - bigger for boss)
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x - 8, y - 28, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(x - 7, y - 27, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x - 6, y - 30, 1.5, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x + 8, y - 28, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(x + 9, y - 27, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x + 10, y - 30, 1.5, 0, Math.PI * 2); ctx.fill();
+
+    // Angry eyebrows (V shape - thick)
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.moveTo(x - 15, y - 38); ctx.lineTo(x - 4, y - 34); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 15, y - 38); ctx.lineTo(x + 4, y - 34); ctx.stroke();
+
+    // Mouth
+    if (comboHigh) {
+        // Smile when combo is high
+        ctx.strokeStyle = '#C0392B'; ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(x, y - 16, 6, 0.1 * Math.PI, 0.9 * Math.PI);
+        ctx.stroke();
+    } else {
+        // Frown
+        ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(x, y - 12, 5, 1.1 * Math.PI, 1.9 * Math.PI);
+        ctx.stroke();
+    }
     ctx.restore();
 }
 
@@ -929,11 +1218,11 @@ function drawMenuScene() {
 
     const rules = [
         '\u{1F3C3}  Mueve tu operador entre ESTACIONES con click',
-        '\u{1F3E5}  Cada estacion se degrada — atiendela para restaurarla',
-        '\u{1FA99}  Cada cliente exitoso = coins para la tienda',
+        '\u{1F464}  Procesa clientes antes de que se desesperen',
+        '\u2B50  Exitosos = moneda para mejoras en la tienda',
         '\u{1F525}  Combo: clientes sin perder = multiplicador',
         '',
-        '\u25CF Normal (3)   \u270B Complicado (5)   ! Urgente (4)',
+        '\u25CF Normal   \u2605 Complicado   ! Urgente',
         '',
         '8 dias  \u2022  90s cada uno  \u2022  ~15 min total',
     ];
@@ -981,14 +1270,13 @@ function initGame(gameState) {
     game = {
         round: gs.round,
         procs: PROC_DATA.map(() => ({
-            health: 100, queue: [], processProgress: 0,
-            speedMult: 1, decayMult: 1, autoHealRate: 0, isFullAuto: false,
-            frozen: false, frozenTimer: 0, lossTimer: 0,
+            queue: [], processProgress: 0,
+            speedMult: 1, patienceMult: 1, isAutoProcess: false, autoProcessSpeed: 0, isFullAuto: false,
+            frozen: false, frozenTimer: 0,
         })),
         attending: -1,
         roundScore: 0,
         roundLost: 0,
-        roundCoins: 0,
         roundArrived: 0,
         combo: 0,
         maxCombo: 0,
@@ -997,9 +1285,8 @@ function initGame(gameState) {
         eventAccum: 0,
         usedEvents: [],
         eventCount: 0,
-        healMult: 1,
-        healDebuffTimer: 0,
-        healRateMult: 1,
+        speedDebuffMult: 1,
+        speedDebuffTimer: 0,
         eventPaused: false,
         roundStarted: false,
         ended: false,
@@ -1007,9 +1294,8 @@ function initGame(gameState) {
         bossFaceRedTimer: 0,
         investing: -1,
         boostState: ROUND_BOOSTS.map(() => ({ progress: 0, done: false })),
-        boostHealMult: 1,
         boostSpeedMult: 1,
-        boostDecayMult: 1,
+        boostPatienceMult: 1,
         // Flash station tracking
         stationFlashes: [0, 0, 0, 0, 0],
         // Single worker position (smooth movement)
@@ -1025,19 +1311,20 @@ function initGame(gameState) {
 
 function applyUpgrades() {
     const u = gs.upgrades;
-    if (u.app) game.procs[0].autoHealRate = 2;
+    if (u.app) { game.procs[0].isAutoProcess = true; game.procs[0].autoProcessSpeed = 0.3; }
     if (u.dashboard) game.procs[1].speedMult *= 0.6;
     if (u.protocolo) game.procs[2].speedMult *= 0.6;
-    if (u.debito) game.procs[3].autoHealRate = 3;
-    if (u.script) game.procs[3].speedMult *= 0.6;
-    if (u.capacita) game.healRateMult = 1.5;
-    if (u.gestion) { for (const p of game.procs) p.decayMult *= 0.7; }
+    if (u.debito) { game.procs[3].isAutoProcess = true; game.procs[3].autoProcessSpeed = 0.3; }
+    if (u.script) { game.procs[1].speedMult *= 0.7; game.procs[3].speedMult *= 0.7; }
+    if (u.capacita) { for (const p of game.procs) p.speedMult *= 0.7; }
+    if (u.gestion) { for (const p of game.procs) p.patienceMult *= 0.7; }
     if (u.auto) {
         const order = [0, 2, 3, 4, 1];
         for (const i of order) {
             if (!game.procs[i].isFullAuto) {
                 game.procs[i].isFullAuto = true;
-                game.procs[i].autoHealRate = Math.max(game.procs[i].autoHealRate, 2);
+                game.procs[i].isAutoProcess = true;
+                game.procs[i].autoProcessSpeed = 0.6;
                 break;
             }
         }
@@ -1115,7 +1402,7 @@ function getArrivalInterval() {
 function getClientType() {
     const r = Math.random();
     if (game.round >= 5 && r < 0.18) return 'urgente';
-    if (game.round >= 3 && r < 0.32) return 'vip';
+    if (game.round >= 3 && r < 0.32) return 'complicado';
     return 'normal';
 }
 
@@ -1126,7 +1413,8 @@ function getEventInterval() {
     return 26;
 }
 
-function getDecayScale() { return 1 + (game.round - 1) * 0.08; }
+// Round difficulty: clients age faster in later rounds
+function getAgingScale() { return 1 + (game.round - 1) * 0.08; }
 
 // These are methods on game object for events to call via g.xxx()
 function gameAddClientsTo(procIdx, count) {
@@ -1167,9 +1455,9 @@ function completeBoost(j) {
     const bs = game.boostState[j];
     bs.done = true;
     bs.progress = ROUND_BOOSTS[j].investTime;
-    if (j === 0) game.boostHealMult = 2;
-    if (j === 1) game.boostSpeedMult = 0.6;
-    if (j === 2) game.boostDecayMult = 0.5;
+    if (j === 0) game.boostSpeedMult = 0.6;   // Comite Ops: velocity +50%
+    if (j === 1) game.boostSpeedMult = Math.min(game.boostSpeedMult, 0.6);  // Rev Dashboard: velocity +50%
+    if (j === 2) game.boostPatienceMult = 0.5; // Training: patience +50%
     floatText(BOOST_X[j], BOOST_Y - 35, '\u2705 ' + ROUND_BOOSTS[j].name + '!', '#4caf50');
     flashScreen(76, 175, 80);
     game.investing = -1;
@@ -1179,16 +1467,6 @@ function completeBoost(j) {
 function updateProcess(i, dt) {
     const p = game.procs[i];
     const data = PROC_DATA[i];
-    const dScale = getDecayScale();
-
-    // Health
-    if (game.attending === i) {
-        p.health = Math.min(100, p.health + HEAL_RATE * game.healMult * game.healRateMult * game.boostHealMult * dt);
-    } else {
-        if (p.autoHealRate > 0) p.health = Math.min(100, p.health + p.autoHealRate * dt);
-        const pressure = (1 + p.queue.length * 0.12);
-        p.health = Math.max(0, p.health - data.decay * p.decayMult * game.boostDecayMult * pressure * dScale * dt);
-    }
 
     // Frozen
     if (p.frozen) {
@@ -1197,19 +1475,14 @@ function updateProcess(i, dt) {
         return;
     }
 
-    // Processing
-    let hf;
-    if (p.health > 50) hf = 1;
-    else if (p.health > 25) hf = 0.5 + (p.health - 25) / 50;
-    else hf = 0;
+    // Processing speed: worker attending OR auto-process
+    const autoSpeed = (p.isAutoProcess && game.attending !== i) ? p.autoProcessSpeed : 0;
+    const attendSpeed = (game.attending === i) ? 1.3 : 0;
+    const speed = Math.max(attendSpeed, autoSpeed) * game.speedDebuffMult;
 
-    const autoBoost = (p.isFullAuto && game.attending !== i) ? 0.6 : 0;
-    const attendBoost = (game.attending === i) ? 1.3 : 0;
-    const speed = Math.max(attendBoost, autoBoost);
-
-    if (hf > 0 && p.queue.length > 0 && speed > 0) {
+    if (p.queue.length > 0 && speed > 0) {
         const et = data.processTime * p.speedMult * game.boostSpeedMult * CLIENT_TYPES[p.queue[0].type].timeMult;
-        p.processProgress += (dt * speed * hf) / et;
+        p.processProgress += (dt * speed) / et;
 
         while (p.processProgress >= 1 && p.queue.length > 0) {
             p.processProgress -= 1;
@@ -1227,38 +1500,25 @@ function updateProcess(i, dt) {
         }
     }
 
-    // Client aging
+    // Client aging — clients get more desperate over time
+    const agingScale = getAgingScale();
     for (let j = p.queue.length - 1; j >= 0; j--) {
-        p.queue[j].age += dt * CLIENT_TYPES[p.queue[j].type].ageMult;
+        p.queue[j].age += dt * CLIENT_TYPES[p.queue[j].type].ageMult * p.patienceMult * game.boostPatienceMult * agingScale;
         if (p.queue[j].age >= CLIENT_EXPIRY) {
             p.queue.splice(j, 1);
             clientLost(i);
         }
     }
-
-    // Client loss when process dead
-    if (p.health <= 0 && p.queue.length > 0) {
-        p.lossTimer += dt;
-        if (p.lossTimer >= LOSS_INTERVAL) {
-            p.queue.shift();
-            p.lossTimer = 0;
-            clientLost(i);
-        }
-    } else {
-        p.lossTimer = 0;
-    }
 }
 
 function clientSuccess(type) {
     const tier = getComboTier(game.combo);
-    const coins = Math.round(CLIENT_TYPES[type].value * tier.mult);
-    gs.coins += coins;
-    game.roundCoins += coins;
+    gs.exitosos++;
     game.roundScore++;
     game.combo++;
     game.maxCombo = Math.max(game.maxCombo, game.combo);
     exitAnim(type);
-    floatText(PROC_POS[4].x, PROC_POS[4].y - 80, '\u26A1 +' + coins + '\u{1FA99}', '#228B22');
+    floatText(PROC_POS[4].x, PROC_POS[4].y - 80, '\u2705 +1', '#228B22');
     successParticleBurst(type);
 
     const newTier = getComboTier(game.combo);
@@ -1355,8 +1615,8 @@ function triggerEvent() {
     document.getElementById('evt-a-desc').textContent = evt.optA.desc;
 
     // Button B
-    const canAffordB = evt.optB.cost === undefined || evt.optB.cost === 0 || gs.coins >= evt.optB.cost;
-    const bDesc = evt.optB.cost ? evt.optB.desc + ' (\u{1F4B0}' + evt.optB.cost + ')' : evt.optB.desc;
+    const canAffordB = evt.optB.cost === undefined || evt.optB.cost === 0 || gs.exitosos >= evt.optB.cost;
+    const bDesc = evt.optB.cost ? evt.optB.desc : evt.optB.desc;
     document.getElementById('evt-b-label').textContent = evt.optB.label;
     document.getElementById('evt-b-desc').textContent = bDesc;
 
@@ -1371,7 +1631,7 @@ function triggerEvent() {
         btnB.style.borderColor = '#DAA520';
     }
 
-    // Proxy so events can use g.addClientsTo(), g.procs, g.healMult = x, etc.
+    // Proxy so events can use g.addClientsTo(), g.procs, g.speedDebuffMult = x, etc.
     const proxyHandler = {
         get(target, prop) {
             if (prop === 'procs') return game.procs;
@@ -1396,7 +1656,7 @@ function triggerEvent() {
     };
     const handleB = () => {
         if (!canAffordB) return;
-        if (evt.optB.cost) gs.coins -= evt.optB.cost;
+        if (evt.optB.cost) gs.exitosos -= evt.optB.cost;
         evt.optB.apply(gameProxy);
         dismissEvent();
     };
@@ -1424,16 +1684,15 @@ function endRound() {
     if (game.ended) return;
     game.ended = true;
 
-    // Quality bonus
+    // Quality bonus: +2 exitosos if no losses
     if (game.roundLost === 0) {
-        gs.coins += COIN_QUALITY_BONUS;
-        game.roundCoins += COIN_QUALITY_BONUS;
+        gs.exitosos += 2;
     }
 
     gs.totalScore += game.roundScore;
     gs.roundStats.push({
         round: game.round, score: game.roundScore, lost: game.roundLost,
-        coins: game.roundCoins, maxCombo: game.maxCombo, arrived: game.roundArrived,
+        maxCombo: game.maxCombo, arrived: game.roundArrived,
     });
 
     fadeTransition('game', () => {
@@ -1467,7 +1726,7 @@ function drawGameScene(now) {
 }
 
 function drawBossArea(now) {
-    const bx = 520, by = 100;
+    const bx = 540, by = 85;
 
     // Desk (wood plank style)
     ctx.fillStyle = '#8B5E3C';
@@ -1550,7 +1809,7 @@ function drawBossArea(now) {
     // Pick phrase based on state, change every 4 seconds
     const phraseIdx = Math.floor(now / 4000);
     let phrase;
-    const anyDanger = game.procs.some(p => p.health < 25 && p.health > 0);
+    const anyDanger = game.procs.some(p => p.queue.some(c => c.age / CLIENT_EXPIRY > 0.75));
     if (anyDanger) {
         phrase = BOSS_PHRASES_DANGER[phraseIdx % BOSS_PHRASES_DANGER.length];
     } else if (comboHigh) {
@@ -1611,7 +1870,7 @@ function drawStations(now) {
         const hw = PROC_W / 2, hh = PROC_H / 2;
 
         const att = game.attending === i;
-        const danger = p.health < 25 && !p.frozen;
+        const danger = p.queue.some(c => c.age / CLIENT_EXPIRY > 0.75) && !p.frozen;
 
         // Station glow (yellow for selected)
         if (att) {
@@ -1725,15 +1984,16 @@ function drawStations(now) {
             // Cubicle inner wall color
             ctx.fillStyle = '#78909C';
             fillRoundRect(x - 44, y - hh + 12, 88, 42, 2);
-            // Small chart on wall (uses health to angle a line)
+            // Small chart on wall (angle based on queue pressure)
             ctx.fillStyle = '#FFF';
             fillRoundRect(x + 12, y - hh + 16, 28, 20, 2);
             ctx.strokeStyle = '#ddd'; ctx.lineWidth = 0.5;
             strokeRoundRect(x + 12, y - hh + 16, 28, 20, 2);
-            // Chart line — angle based on health
-            const chartY1 = p.health > 50 ? y - hh + 20 : y - hh + 32;
-            const chartY2 = y - hh + 34 - (p.health / 100) * 16;
-            ctx.strokeStyle = p.health > 50 ? '#4CAF50' : '#F44336';
+            // Chart line — angle based on queue pressure
+            const qPressure = p.queue.length / CLIENT_MAX;
+            const chartY1 = qPressure < 0.5 ? y - hh + 20 : y - hh + 32;
+            const chartY2 = y - hh + 34 - (1 - qPressure) * 16;
+            ctx.strokeStyle = qPressure < 0.5 ? '#4CAF50' : '#F44336';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(x + 15, chartY1);
@@ -1973,114 +2233,60 @@ function drawStations(now) {
 
         // (Worker is drawn separately as a single moving character)
 
-        // ONE prominent vertical GREEN health bar on the right side
-        const barW = 14, barH = 110;
-        const barX = x + hw - 18;
-        const barTopY = y - hh + 6;
-
-        // Bar background
-        ctx.fillStyle = '#333';
-        fillRoundRect(barX, barTopY, barW, barH, 4);
-
-        if (p.health > 0) {
-            const fillH = barH * (p.health / 100);
-            ctx.fillStyle = hpColor(p.health);
-            fillRoundRect(barX, barTopY + barH - fillH, barW, fillH, 4);
-            // Shine highlight
-            ctx.fillStyle = 'rgba(255,255,255,0.25)';
-            fillRoundRect(barX + 1, barTopY + barH - fillH, barW / 3, fillH, 2);
-        }
-        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
-        strokeRoundRect(barX, barTopY, barW, barH, 4);
-
-        // Auto-heal indicator (green dot above bar)
-        if (p.autoHealRate > 0) {
-            ctx.fillStyle = '#4CAF50';
-            ctx.beginPath(); ctx.arc(barX + barW / 2, barTopY - 8, 5, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = '700 7px "Nunito", Arial, sans-serif';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText('+', barX + barW / 2, barTopY - 8);
-        }
-
-        // Processing mini-bar
-        if (p.health > 25 && p.queue.length > 0 && !p.frozen) {
-            const pW = 80;
+        // Processing progress bar (above first client)
+        if (p.queue.length > 0 && !p.frozen && (att || p.isAutoProcess)) {
+            const pW = 60;
             ctx.fillStyle = '#444';
-            fillRoundRect(x - pW / 2, convY + 24, pW, 4, 2);
+            fillRoundRect(x - pW / 2, convY + 22, pW, 5, 2);
             ctx.fillStyle = '#FFD700';
-            fillRoundRect(x - pW / 2, convY + 24, pW * Math.min(1, p.processProgress), 4, 2);
+            fillRoundRect(x - pW / 2, convY + 22, pW * Math.min(1, p.processProgress), 5, 2);
         }
 
-        // === CLIENT QUEUE BAR (prominent waiting line) ===
-        const qBarW = PROC_W - 16;
-        const qBarH = 22;
-        const qBarX = x - qBarW / 2;
-        const qBarY = y + 30;
-
-        // Bar background (dark, shows max capacity)
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        fillRoundRect(qBarX, qBarY, qBarW, qBarH, 6);
-
-        // Fill based on how full (green → yellow → red)
-        const fillRatio = p.queue.length / CLIENT_MAX;
+        // Client queue as chibi figures
         if (p.queue.length > 0) {
-            let barColor;
-            if (fillRatio >= 0.75) barColor = '#FF4444';
-            else if (fillRatio >= 0.5) barColor = '#FFA726';
-            else barColor = '#66BB6A';
-            ctx.fillStyle = barColor;
-            fillRoundRect(qBarX, qBarY, qBarW * fillRatio, qBarH, 6);
-        }
-
-        // Border
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1;
-        strokeRoundRect(qBarX, qBarY, qBarW, qBarH, 6);
-
-        // Draw mini client figures standing IN the bar
-        if (p.queue.length > 0) {
-            const maxFigs = Math.min(p.queue.length, 8);
-            const figSpacing = (qBarW - 12) / CLIENT_MAX;
-            const startFX = qBarX + 6 + figSpacing / 2;
-            for (let j = 0; j < maxFigs; j++) {
+            const maxVisible = 3;
+            const visCount = Math.min(p.queue.length, maxVisible);
+            const figSpacing = 38;
+            const startFX = x - ((visCount - 1) * figSpacing) / 2;
+            for (let j = 0; j < visCount; j++) {
                 const c = p.queue[j];
-                ctx.globalAlpha = j === 0 ? 1 : 0.75;
-                drawMiniClient(startFX + j * figSpacing, qBarY + qBarH / 2 - 2, CLIENT_TYPES[c.type].color, j === 0);
+                const despRatio = c.age / CLIENT_EXPIRY;
+                ctx.globalAlpha = j === 0 ? 1 : 0.7;
+                drawChibiClient(startFX + j * figSpacing, convY + 44, c.type, despRatio, j === 0, now);
             }
             ctx.globalAlpha = 1;
+
+            // "+N" badge if more than visible
+            if (p.queue.length > maxVisible) {
+                const extra = p.queue.length - maxVisible;
+                const badgeX = startFX + visCount * figSpacing - 6;
+                const badgeY = convY + 36;
+                ctx.fillStyle = '#FF6B35';
+                ctx.beginPath(); ctx.arc(badgeX, badgeY, 10, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = '900 10px "Nunito", Arial, sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('+' + extra, badgeX, badgeY);
+            }
         }
 
-        // Queue count text
-        ctx.font = '900 10px "Nunito", Arial, sans-serif';
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-        ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
-        const qText = p.queue.length + '/' + CLIENT_MAX;
-        ctx.strokeText(qText, qBarX + qBarW - 4, qBarY + qBarH / 2);
-        ctx.fillText(qText, qBarX + qBarW - 4, qBarY + qBarH / 2);
-
-        // BLOCKED indicator when full (8/8)
-        if (p.queue.length >= CLIENT_MAX) {
-            const pulse = 0.6 + Math.sin(now / 200) * 0.4;
-            // Flashing red border on the queue bar
-            ctx.strokeStyle = `rgba(255,0,0,${pulse})`; ctx.lineWidth = 3;
-            strokeRoundRect(qBarX - 1, qBarY - 1, qBarW + 2, qBarH + 2, 7);
-            // LLENO badge
-            ctx.fillStyle = `rgba(255,68,68,${0.8 + Math.sin(now / 300) * 0.2})`;
-            fillRoundRect(x - 30, qBarY - 14, 60, 16, 4);
-            ctx.font = '900 10px "Nunito", Arial, sans-serif';
+        // Client count badge
+        if (p.queue.length > 0) {
+            const bcx = x + hw - 14, bcy = y - hh + 14;
+            ctx.fillStyle = p.queue.length >= 6 ? '#FF4444' : '#FF6B35';
+            ctx.beginPath(); ctx.arc(bcx, bcy, 13, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(bcx, bcy, 13, 0, Math.PI * 2); ctx.stroke();
+            ctx.font = '900 14px "Nunito", Arial, sans-serif';
             ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
-            ctx.strokeText('\u26D4 LLENO', x, qBarY - 6);
-            ctx.fillText('\u26D4 LLENO', x, qBarY - 6);
+            ctx.fillText(String(p.queue.length), bcx, bcy);
         }
 
         // Status text
         let statusText = '', statusColor = '';
         if (p.frozen) { statusText = '\u2744\uFE0F CONGELADO ' + Math.ceil(p.frozenTimer) + 's'; statusColor = '#29b6f6'; }
         else if (p.isFullAuto) { statusText = '\u{1F916} AUTO'; statusColor = '#9c27b0'; }
-        else if (p.health <= 0 && p.queue.length > 0) { statusText = '\u{1F480} MUERTO'; statusColor = '#FF4444'; }
-        else if (p.health < 25) { statusText = '\u26A0\uFE0F PELIGRO'; statusColor = '#FF4444'; }
-        else if (p.autoHealRate > 0 && game.attending !== i) { statusText = '\u{1F49A} auto-heal'; statusColor = '#4CAF50'; }
+        else if (p.isAutoProcess && !p.isFullAuto && game.attending !== i) { statusText = '\u2699\uFE0F auto'; statusColor = '#4CAF50'; }
 
         if (statusText) {
             ctx.font = '900 10px "Nunito", Arial, sans-serif';
@@ -2118,7 +2324,7 @@ function drawMovingWorker(now) {
     if (!game) return;
 
     // Determine target position
-    const IDLE_POS = { x: 400, y: 130 }; // Near boss desk when idle
+    const IDLE_POS = { x: 420, y: 115 }; // Near boss desk when idle
     let targetX, targetY;
 
     if (game.attending >= 0) {
@@ -2159,7 +2365,7 @@ function drawMovingWorker(now) {
         armOffset = Math.sin(now / 100) * 8;
     } else if (game.attending >= 0) {
         const p = game.procs[game.attending];
-        if (p.queue.length > 0 && p.health > 25 && !p.frozen) {
+        if (p.queue.length > 0 && !p.frozen) {
             armOffset = Math.sin(now / 150) * 6; // Working
         }
     } else if (game.investing >= 0) {
@@ -2232,32 +2438,35 @@ function drawBoosts(now) {
 function drawHUD(now) {
     // Dark top bar
     ctx.fillStyle = '#2a1a0e';
-    ctx.fillRect(0, 0, W, 60);
+    ctx.fillRect(0, 0, W, 50);
     // Subtle bottom edge
     ctx.fillStyle = '#5D3A1A';
-    ctx.fillRect(0, 58, W, 2);
+    ctx.fillRect(0, 48, W, 2);
 
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
-    // === LEFT: Coin icon + count ===
-    drawCoinIcon(35, 30, 14);
-    ctx.font = '900 18px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
-    ctx.textAlign = 'left';
-    ctx.fillText(String(gs.coins), 55, 30);
+    // === LEFT: DIA X (prominent) ===
+    ctx.font = '900 20px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    ctx.fillText('DIA ' + game.round, 60, 26);
 
-    // === CENTER-TOP: Timer ===
+    // === CENTER-LEFT: Exitosos ===
+    ctx.font = '700 8px "Nunito", Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillText('EXITOSOS', 180, 12);
+    ctx.font = '900 18px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#4CAF50';
+    ctx.fillText(String(game.roundScore), 180, 32);
+
+    // === CENTER: Timer ===
     const secs = Math.ceil(game.timeLeft);
     const timerX = W / 2;
     if (secs <= 15) {
-        // Red/pink pill background when low
         const pulse = Math.sin(now / 200) * 0.3 + 0.7;
         ctx.fillStyle = `rgba(255,68,68,${pulse * 0.8})`;
-        fillRoundRect(timerX - 50, 8, 100, 44, 14);
+        fillRoundRect(timerX - 40, 6, 80, 38, 12);
     } else {
         ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        fillRoundRect(timerX - 50, 8, 100, 44, 14);
+        fillRoundRect(timerX - 40, 6, 80, 38, 12);
     }
-    ctx.font = '900 24px "Nunito", monospace'; ctx.textAlign = 'center';
+    ctx.font = '900 22px "Nunito", monospace'; ctx.textAlign = 'center';
     if (secs <= 15) {
         const pulse = Math.sin(now / 200) * 0.5 + 0.5;
         const r = Math.round(200 + 55 * pulse);
@@ -2265,82 +2474,52 @@ function drawHUD(now) {
     } else {
         ctx.fillStyle = '#FFFFFF';
     }
-    ctx.fillText(fmtTime(secs), timerX, 32);
+    ctx.fillText(fmtTime(secs), timerX, 26);
 
-    // === Score (left of center) ===
-    ctx.font = '700 9px "Nunito", Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.textAlign = 'center';
-    ctx.fillText('EXITOSOS', 175, 14);
-    ctx.font = '900 20px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#4CAF50';
-    ctx.fillText(String(game.roundScore), 175, 38);
-
-    // === Combo (right of center) ===
-    ctx.font = '700 9px "Nunito", Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.fillText('COMBO', 460, 14);
-
+    // === CENTER-RIGHT: Combo ===
     const tier = getComboTier(game.combo);
     let comboStr, comboColor, comboSize;
     if (tier.mult >= 3) {
         const pulse = Math.sin(now / 250) * 0.08 + 1;
-        comboStr = '\u{1F525}\u{1F525}' + tier.label; comboColor = '#ff5722'; comboSize = 22 * pulse;
+        comboStr = '\u{1F525}' + tier.label; comboColor = '#ff5722'; comboSize = 20 * pulse;
     } else if (tier.mult >= 2) {
-        const pulse = Math.sin(now / 400) * 0.04 + 1;
-        comboStr = '\u{1F525}' + tier.label; comboColor = '#ff9800'; comboSize = 20 * pulse;
+        comboStr = '\u{1F525}' + tier.label; comboColor = '#ff9800'; comboSize = 18;
     } else if (tier.mult >= 1.5) {
-        comboStr = tier.label; comboColor = '#ffc107'; comboSize = 19;
+        comboStr = tier.label; comboColor = '#ffc107'; comboSize = 16;
     } else {
-        comboStr = tier.label; comboColor = '#FFFFFF'; comboSize = 18;
+        comboStr = tier.label; comboColor = '#FFFFFF'; comboSize = 15;
     }
     ctx.font = `900 ${Math.round(comboSize)}px "Nunito", Arial, sans-serif`;
     ctx.fillStyle = comboColor;
-    ctx.fillText(comboStr, 460, 38);
+    ctx.fillText(comboStr, 450, 26);
 
-    // Combo meter bar
-    const meterX = 418, meterY = 52, meterW = 84, meterH = 5;
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    fillRoundRect(meterX, meterY, meterW, meterH, 2);
-    let meterFill = 0, meterColor = '#555';
-    if (tier.mult >= 3) { meterFill = 1; meterColor = '#FF4444'; }
-    else if (tier.mult >= 2) { meterFill = 0.75; meterColor = '#FFA500'; }
-    else if (tier.mult >= 1.5) { meterFill = 0.5; meterColor = '#FFD700'; }
-    else { meterFill = Math.min(1, game.combo / 3) * 0.25; meterColor = '#555'; }
-    if (meterFill > 0) {
-        ctx.fillStyle = meterColor;
-        fillRoundRect(meterX, meterY, meterW * meterFill, meterH, 2);
-    }
-
-    // === RIGHT: Day counter ===
-    ctx.font = '900 16px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
-    ctx.textAlign = 'center';
-    ctx.fillText('DIA ' + game.round + '/' + TOTAL_ROUNDS, 575, 24);
-
-    // Lost count
+    // === RIGHT: Perdidos ===
     ctx.font = '700 8px "Nunito", Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.fillText('PERDIDOS', 575, 42);
-    ctx.font = '900 14px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FF4444';
-    ctx.fillText(String(game.roundLost), 575, 54);
+    ctx.fillText('PERDIDOS', 570, 12);
+    ctx.font = '900 18px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FF4444';
+    ctx.fillText(String(game.roundLost), 570, 32);
 
     // Status text below HUD
-    let statusMsg, statusColor;
+    let statusMsg, statusColor2;
     if (game.attending >= 0) {
         statusMsg = '\u{1F527} Atendiendo: ' + PROC_DATA[game.attending].name;
-        statusColor = '#4CAF50';
+        statusColor2 = '#4CAF50';
     } else if (game.investing >= 0) {
         statusMsg = '\u{1F477} Invirtiendo en: ' + ROUND_BOOSTS[game.investing].name + '...';
-        statusColor = '#FFD700';
+        statusColor2 = '#FFD700';
     } else {
         statusMsg = 'Click una estacion para atenderla';
-        statusColor = '#8B5E3C';
+        statusColor2 = '#8B5E3C';
     }
-    ctx.font = '700 italic 11px "Nunito", Arial, sans-serif'; ctx.fillStyle = statusColor;
+    ctx.font = '700 italic 11px "Nunito", Arial, sans-serif'; ctx.fillStyle = statusColor2;
     ctx.textAlign = 'center';
-    ctx.fillText(statusMsg, W / 2, 73);
+    ctx.fillText(statusMsg, W / 2, 63);
 
-    // Heal debuff
-    if (game.healDebuffTimer > 0) {
+    // Speed debuff indicator
+    if (game.speedDebuffTimer > 0) {
         ctx.font = '900 12px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FF4444';
         ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
-        const dbTxt = '\u26A0\uFE0F Heal reducido \u2014 ' + Math.ceil(game.healDebuffTimer) + 's';
+        const dbTxt = '\u26A0\uFE0F Velocidad reducida \u2014 ' + Math.ceil(game.speedDebuffTimer) + 's';
         ctx.strokeText(dbTxt, W / 2, H - 15);
         ctx.fillText(dbTxt, W / 2, H - 15);
     }
@@ -2373,12 +2552,17 @@ function updateGame(dt, now) {
             if (currentEvt) currentEvt.autoApply();
             dismissEvent();
         }
-        // Processes still decay during events
+        // Clients still age during events
+        const agingScale = getAgingScale();
         for (let i = 0; i < 5; i++) {
             const p = game.procs[i];
-            if (p.autoHealRate > 0) p.health = Math.min(100, p.health + p.autoHealRate * dt);
-            const pressure = (1 + p.queue.length * 0.12);
-            p.health = Math.max(0, p.health - PROC_DATA[i].decay * p.decayMult * pressure * getDecayScale() * dt);
+            for (let j = p.queue.length - 1; j >= 0; j--) {
+                p.queue[j].age += dt * CLIENT_TYPES[p.queue[j].type].ageMult * p.patienceMult * game.boostPatienceMult * agingScale;
+                if (p.queue[j].age >= CLIENT_EXPIRY) {
+                    p.queue.splice(j, 1);
+                    clientLost(i);
+                }
+            }
         }
         drawGameScene(now);
         return;
@@ -2388,10 +2572,10 @@ function updateGame(dt, now) {
     game.timeLeft -= dt;
     if (game.timeLeft <= 0) { game.timeLeft = 0; endRound(); return; }
 
-    // Heal debuff
-    if (game.healDebuffTimer > 0) {
-        game.healDebuffTimer -= dt;
-        if (game.healDebuffTimer <= 0) { game.healMult = 1; }
+    // Speed debuff
+    if (game.speedDebuffTimer > 0) {
+        game.speedDebuffTimer -= dt;
+        if (game.speedDebuffTimer <= 0) { game.speedDebuffMult = 1; }
     }
 
     // Arrivals
@@ -2466,19 +2650,18 @@ function drawShopScene() {
         'Exitosos: ' + lastRound.score,
         'Perdidos: ' + lastRound.lost,
         'Combo max: x' + getComboTier(lastRound.maxCombo).mult,
-        'Coins: +' + lastRound.coins + (lastRound.lost === 0 ? ' (+10 bonus!)' : ''),
-    ].join('    |    ');
+        lastRound.lost === 0 ? '+2 bonus!' : '',
+    ].filter(Boolean).join('    |    ');
     ctx.font = '700 11px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#D2B48C';
     ctx.lineWidth = 0;
     ctx.fillText(statsLine, W / 2, 62);
 
-    // Balance with coin icon
-    drawCoinIcon(W / 2 - 90, 120, 14);
-    ctx.font = '900 20px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#FFD700';
+    // Balance
+    ctx.font = '900 20px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#4CAF50';
     ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3;
     ctx.textAlign = 'center';
-    ctx.strokeText('Balance: ' + gs.coins + ' coins', W / 2 + 10, 120);
-    ctx.fillText('Balance: ' + gs.coins + ' coins', W / 2 + 10, 120);
+    ctx.strokeText('Exitosos disponibles: ' + gs.exitosos, W / 2, 120);
+    ctx.fillText('Exitosos disponibles: ' + gs.exitosos, W / 2, 120);
 
     ctx.font = '900 14px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#8B5E3C';
     ctx.lineWidth = 0;
@@ -2512,7 +2695,7 @@ function buildShopDOM() {
         const cx = COL_X[col];
         const cy = ROW_Y[row];
         const owned = !!gs.upgrades[u.id];
-        const canAfford = gs.coins >= u.price;
+        const canAfford = gs.exitosos >= u.price;
 
         const card = document.createElement('div');
         card.className = 'shop-card';
@@ -2522,8 +2705,8 @@ function buildShopDOM() {
         card.style.left = (cx - CW / 2) + 'px';
         card.style.top = (cy - CH / 2) + 'px';
 
-        const buyBtnText = owned ? '\u2705 Comprado' : (canAfford ? 'COMPRAR' : 'Sin coins');
-        const priceText = owned ? '' : `\u{1FA99} ${u.price}`;
+        const buyBtnText = owned ? '\u2705 Comprado' : (canAfford ? 'COMPRAR' : 'Sin exitosos');
+        const priceText = owned ? '' : `\u2B50 ${u.price}`;
 
         card.innerHTML = `
             <div class="sc-emoji">${u.emoji}</div>
@@ -2535,7 +2718,7 @@ function buildShopDOM() {
 
         if (!owned && canAfford) {
             card.addEventListener('click', () => {
-                gs.coins -= u.price;
+                gs.exitosos -= u.price;
                 gs.upgrades[u.id] = true;
                 // Redraw shop
                 drawShopScene();
@@ -2596,7 +2779,6 @@ function drawEndScene() {
     // Stats panel (white rounded card)
     const upgradeCount = Object.keys(d.upgrades).length;
     const bestRound = d.roundStats.reduce((a, b) => a.score > b.score ? a : b);
-    const totalCoins = d.roundStats.reduce((sum, r) => sum + r.coins, 0);
     const maxCombo = Math.max(...d.roundStats.map(r => r.maxCombo));
 
     const sy = 220;
@@ -2610,8 +2792,8 @@ function drawEndScene() {
 
     const stats = [
         ['Clientes que llegaron', String(d.totalArrived), '#555555'],
+        ['Clientes exitosos', String(d.totalScore), '#4CAF50'],
         ['Clientes perdidos', String(d.totalLost), d.totalLost > 0 ? '#CC0000' : '#4CAF50'],
-        ['Coins ganados total', String(totalCoins), '#8B6914'],
         ['Upgrades comprados', upgradeCount + '/8', '#1F77B4'],
         ['Mejor dia', 'Dia ' + bestRound.round + ' (' + bestRound.score + ' exitosos)', '#4CAF50'],
         ['Combo maximo', 'x' + getComboTier(maxCombo).mult + ' (' + maxCombo + ' seguidos)', '#FF6B35'],
@@ -2634,7 +2816,7 @@ function drawEndScene() {
     else if (d.totalScore >= 55) msg = 'Buen manejo operativo. Tu equipo CS estaria orgulloso.';
     else if (d.totalScore >= 35) msg = 'Sobreviviste los 8 dias. Las mejoras hicieron la diferencia.';
     else if (d.totalScore >= 20) msg = 'Dia dificil. Invertir temprano en upgrades es clave.';
-    else msg = 'Semana complicada. Tip: compra auto-heal temprano para liberar tiempo.';
+    else msg = 'Semana complicada. Tip: compra automatizacion temprano para liberar tiempo.';
 
     ctx.font = '700 italic 15px "Nunito", Arial, sans-serif'; ctx.fillStyle = '#5D3A1A';
     wrapText(msg, W / 2, 460, 500, 20);
